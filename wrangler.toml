@@ -1,1 +1,33 @@
- 
+name = "runjumpski"
+main = "workers/index.ts"
+compatibility_date = "2023-04-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[build]
+command = "npm run build"
+
+[site]
+bucket = "./dist"
+
+[env.production]
+name = "runjumpski-prod"
+route = "runjumpski.yourdomain.com/*"
+# Add your domain when ready
+
+# KV Namespace for configuration
+# kv_namespaces = [
+#   { binding = "RUNJUMPSKI_CONFIG", id = "xxxx", preview_id = "xxxx" }
+# ]
+
+# R2 for asset storage
+# [[r2_buckets]]
+# binding = "ASSETS"
+# bucket_name = "runjumpski-assets"
+# preview_bucket_name = "runjumpski-assets-dev"
+
+# D1 Database for leaderboards
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "runjumpski-db"
+# database_id = "xxxx"
