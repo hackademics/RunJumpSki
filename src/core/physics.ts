@@ -1,5 +1,5 @@
  
-import { Scene, Vector3, PhysicsImpostor, Mesh, Ray, CannonJSPlugin } from '@babylonjs/core';
+import { Scene, Vector3, PhysicsImpostor, Mesh, Ray } from '@babylonjs/core';
 import { IEventEmitter } from '../types/events';
 import { Logger } from '../utils/logger';
 import { IPhysicsObject, PhysicsMaterial } from '../types/physics';
@@ -28,7 +28,7 @@ export class Physics {
             this.logger.info('Initializing physics system...');
 
             // Enable physics in the scene
-            this.scene.enablePhysics(this.gravity, new CannonJSPlugin());
+            this.scene.enablePhysics(this.gravity, new BABYLON.CannonJSPlugin());
 
             // Subscribe to collision events
             this.scene.onBeforePhysicsObservable.add(() => {
