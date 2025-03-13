@@ -1,7 +1,7 @@
 import { Engine } from './engine';
 import { EventSystem, EventType } from './events';
-import { Logger } from './logger';
-import { Entity } from './entity';
+import { Logger } from '../utils/logger';
+import { Entity } from '../types/entity';
 import { Vector3 } from './math';
 
 export interface RenderConfig {

@@ -1,6 +1,6 @@
 import { Engine } from './engine';
 import { EventSystem, EventType } from './events';
-import { Logger } from './logger';
+import { Logger } from '../utils/logger';
 
 export enum AssetType {
     TEXTURE = 'texture',

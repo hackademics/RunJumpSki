@@ -1,7 +1,7 @@
 import { Engine } from './engine';
 import { EventSystem, EventType } from './events';
-import { Logger } from './logger';
-import { Vector3 } from './math';
+import { Logger } from '../utils/logger';
+import { Vector3 } from '../utils/math';
 
 export enum SoundType {
     EFFECT = 'effect',

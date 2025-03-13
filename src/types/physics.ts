@@ -1,9 +1,9 @@
-import { Engine } from './engine';
+import { Engine } from '../core/engine';
 import { EventSystem, EventType } from './events';
-import { Logger } from './logger';
-import { Vector3, Quaternion } from './math';
+import { Logger } from '../utils/logger';
+import { Vector3, Quaternion } from '../utils/math';
 import { Entity } from './entity';
-import { MovementComponent, MovementState } from './movement';
+import { MovementComponent, MovementState } from '../components/movement';
 import { TerrainSystem, SurfaceType } from './terrain';
 
 export interface PhysicsConfig {
