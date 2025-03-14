@@ -1,0 +1,294 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# RunJumpSki Development Rules
+
+## File Structure and Organization
+
+- All source code in `src/` directory with these subdirectories:
+  - `core/` - Core game systems (engine, physics, events)
+  - `components/` - Reusable components
+  - `entities/` - Game entities (player, projectiles, targets)
+  - `terrain/` - Terrain generation and management
+  - `ui/` - User interface components
+  - `types/` - TypeScript interfaces and type definitions
+  - `utils/` - Utility functions
+  - `data/` - Game data, configs, constants
+
+- Component evolution pattern:
+  - Start with single file (e.g., `movement.ts`)
+  - When complexity grows, create folder (`movement/`)
+  - Split into logical files (e.g., `index.ts`, `states.ts`, `physics.ts`)
+
+## File Header Standard
+
+```typescript
+/**
+ * src/components/movement/index.ts
+ * Movement component for entities - handles physics, states, and terrain interaction
+ * Core component of the skiing/jetpack gameplay loop
+ */
+```
+
+## Naming Conventions
+
+- **PascalCase**: Classes, Interfaces, Types, Enums
+- **camelCase**: Methods, properties, variables, function names
+- Files match exported class/type:
+  - `MovementComponent` class in `movement.ts` or `movement/index.ts`
+  - `IMovementComponent` interface in `types/components.ts`
+- Use descriptive, specific names (prefer `calculateSlopeAcceleration()` over `calculate()`)
+
+## Component Pattern
+
+1. Define interface in types file:
+
+```typescript
+// src/types/components.ts
+export interface IMovementComponent {
+    update(deltaTime: number, terrainData?: TerrainData): void;
+    applyForce(force: Vector3, contactPoint?: Vector3): void;
+    getState(): MovementState;
+    getVelocity(): Vector3;
+    // Public API methods
+}
+```
+
+2. Implement in components folder:
+
+```typescript
+// src/components/movement.ts or src/components/movement/index.ts
+export class MovementComponent implements IMovementComponent {
+    private logger: Logger;
+    private state: MovementState = 'running';
+    private velocity: Vector3 = new Vector3(0, 0, 0);
+    
+    constructor(
+        private entity: any,
+        private scene: Scene,
+        private events: IEventEmitter,
+        private options: MovementOptions = {}
+    ) {
+        this.logger = new Logger(`MovementComponent:${entity.id || 'unknown'}`);
+        // Initialize component
+    }
+    
+    // Public methods from interface
+    public update(deltaTime: number, terrainData?: TerrainData): void {
+        // Forward to state-specific handler
+        switch (this.state) {
+            case 'running': this.updateRunning(deltaTime); break;
+            case 'skiing': this.updateSkiing(deltaTime, terrainData); break;
+            // Other states
+        }
+    }
+    
+    // Private implementation methods
+    private updateRunning(deltaTime: number): void {
+        // State-specific logic
+    }
+}
+```
+
+## State Management
+
+- Define states as type unions for type safety:
+  ```typescript
+  export type MovementState = 'running' | 'skiing' | 'flying' | 'jetpacking';
+  ```
+
+- Use method-per-state pattern:
+  ```typescript
+  private updateRunning(deltaTime: number): void { /* ... */ }
+  private updateSkiing(deltaTime: number): void { /* ... */ }
+  ```
+
+- Validate state transitions:
+  ```typescript
+  private setState(state: MovementState): void {
+      if (this.state === state) return;
+      const oldState = this.state;
+      // Optional: validate transition is allowed
+      this.state = state;
+      // Emit event
+      this.events.emit(GameEvent.PLAYER_STATE_CHANGE, {
+          entity: this.entity,
+          oldState,
+          newState: state
+      });
+  }
+  ```
+
+## Event Communication
+
+- Define events in enum:
+  ```typescript
+  // src/types/events.ts
+  export enum GameEvent {
+      PLAYER_STATE_CHANGE = 'player:stateChange',
+      PLAYER_JETPACK_START = 'player:jetpackStart'
+      // Other events
+  }
+  ```
+
+- Emit events with typed data:
+  ```typescript
+  this.events.emit(GameEvent.PLAYER_STATE_CHANGE, { 
+      entity: this.entity,
+      oldState: 'running',
+      newState: 'skiing' 
+  });
+  ```
+
+- Listen for events:
+  ```typescript
+  this.events.on(GameEvent.PLAYER_STATE_CHANGE, (data) => {
+      if (data.entity === this.entity) {
+          this.handleStateChange(data);
+      }
+  });
+  ```
+
+- Clean up listeners to prevent memory leaks:
+  ```typescript
+  public dispose(): void {
+      this.events.off(GameEvent.KEY_DOWN, this.handleKeyDown);
+      // or
+      this.events.removeAllListeners();
+  }
+  ```
+
+## Error Handling and Logging
+
+- Use try/catch blocks for external operations:
+  ```typescript
+  try {
+      this.impostor = new PhysicsImpostor(
+          mesh,
+          PhysicsImpostor.BoxImpostor,
+          { mass: 1, friction: 0.5 },
+          this.scene
+      );
+  } catch (error) {
+      this.logger.error('Failed to create physics impostor', error);
+      // Fallback or graceful degradation
+  }
+  ```
+
+- Logger instance per component/class:
+  ```typescript
+  this.logger = new Logger(`MovementComponent:${entity.id || 'unknown'}`);
+  ```
+
+- Use appropriate log levels:
+  ```typescript
+  this.logger.debug('Detailed information for debugging');
+  this.logger.info('Normal operation information');
+  this.logger.warn('Potential issue or unusual behavior');
+  this.logger.error('Error that affects functionality', error);
+  ```
+
+## Physics and Babylon.js
+
+- Use Babylon.js Vector3 for all 3D math:
+  ```typescript
+  const direction = new Vector3(1, 0, 0);
+  const normalized = direction.normalize();
+  const scaled = direction.scale(speed);
+  ```
+
+- Delta time for frame-rate independence:
+  ```typescript
+  position.addInPlace(velocity.scale(deltaTime));
+  ```
+
+- Dispose resources to prevent memory leaks:
+  ```typescript
+  public dispose(): void {
+      if (this.mesh) this.mesh.dispose();
+      if (this.impostor) this.impostor.dispose();
+      // Clean up other resources
+  }
+  ```
+
+## Async Patterns
+
+- Use async/await for resource loading:
+  ```typescript
+  public async loadAssets(): Promise<void> {
+      try {
+          const texture = await this.scene.textureLoader.loadAsync('texture.png');
+          // Process texture
+      } catch (error) {
+          this.logger.error('Failed to load texture', error);
+          // Fallback texture
+      }
+  }
+  ```
+
+- Resource initialization:
+  ```typescript
+  public async initialize(): Promise<void> {
+      await this.terrain.initialize();
+      await this.loadAssets();
+      // Ready to start
+  }
+  ```
+
+## Import Ordering
+
+1. External libraries first
+2. Project imports grouped by type
+3. Relative imports last
+
+```typescript
+// External libraries
+import { Scene, Vector3, Mesh } from '@babylonjs/core';
+
+// Project types/utils
+import { IMovementComponent, MovementState } from '../types/components';
+import { GameEvent } from '../types/events';
+import { Logger } from '../utils/logger';
+
+// Related components/files (relative)
+import { TerrainData } from './terrainData';
+```
+
+## Code Organization Within Files
+
+1. Interface implementations
+2. Private properties
+3. Constructor
+4. Public methods (grouped by functionality)
+5. Private methods (near related public methods)
+6. Utility methods
+7. Event handlers
+8. Cleanup/disposal
+
+## Testing Considerations
+
+- Design for testability:
+  - Use dependency injection
+  - Avoid hidden state
+  - Create interfaces for mocking
+
+## Game-Specific Patterns
+
+### Skiing Mechanics
+- Calculate slope direction and angle from terrain normal
+- Apply gravity force along slope direction
+- Preserve momentum between state transitions
+- Use minimal friction during skiing
+
+### Movement Component Specifics
+- Track grounded state for state transitions
+- Apply different physics based on state
+- Jetpack energy system with regeneration
+
+### Projectile Pattern
+- Inherit velocity from shooter
+- Apply gravity selectively
+- Handle collisions with ray casting
+- Pool and reuse projectile objects

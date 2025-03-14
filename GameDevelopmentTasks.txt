@@ -1,0 +1,155 @@
+# RunJumpSki - Development Tasks
+
+## Milestones
+- [x] **Milestone 1: Core Movement System** - Basic player controller with movement, jumping, skiing, and jetpack
+- [ ] **Milestone 2: Terrain & Environment** - First map with terrain features supporting the core mechanics
+- [ ] **Milestone 3: Gameplay Elements** - Targets, turrets, and weapons implementation
+- [ ] **Milestone 4: UI & Feedback** - HUD, menus, and player feedback systems
+- [ ] **Milestone 5: Polish & Release** - Audio, performance optimization, and final testing
+- [ ] **MVP Release**
+
+## Tasks
+
+### Milestone 1: Core Movement System
+#### To Do
+- [x] Set up project structure and dependencies (Completed: 2025-03-13)
+- [x] Implement basic player controller with WASD movement (Completed: 2025-03-14)
+- [x] Add jumping mechanics (Completed: 2025-03-14)
+- [x] Implement skiing mechanics (slope detection, friction reduction) (Completed: 2025-03-15)
+- [x] Add jetpack system with energy management (Completed: 2025-03-16)
+- [x] Implement physics for momentum conservation (Completed: 2025-03-17)
+- [x] Create state machine for player movement states (running, skiing, flying, jetpacking) (Completed: 2025-03-18)
+- [x] Add collision detection and response (Completed: 2025-03-19)
+- [x] Implement camera controls and first-person view (Completed: 2025-03-20)
+
+#### In Progress
+- [ ] None
+
+#### Completed
+- [x] Implement core utility classes (Vector3, Transform, Logger) (Completed: 2025-03-13)
+- [x] Implement event system for component communication (Completed: 2025-03-13)
+- [x] Define physics configuration and constants (Completed: 2025-03-13)
+- [x] Implement base entity and component system (Completed: 2025-03-13)
+- [x] Define movement states and state handlers (Completed: 2025-03-13)
+- [x] Define movement component interface (Completed: 2025-03-13)
+
+#### Blocked/Waiting
+- [ ] None
+
+### Milestone 2: Terrain & Environment
+#### To Do
+- [x] Implement map boundaries (Completed: 2025-03-24)
+- [x] Add start and finish line markers (Completed: 2025-03-25)
+- [x] Create basic environmental props (trees, rocks) (Completed: 2025-03-26)
+- [x] Implement race timing system with checkpoints (Completed: 2025-03-27)
+
+#### In Progress
+- [ ] None
+
+#### Completed
+- [x] Design first map layout (Forest - Easy difficulty) (Completed: 2025-03-21)
+- [x] Implement terrain generation system (Completed: 2025-03-21)
+- [x] Add surface types with different properties (snow, ice, rock, etc.) (Completed: 2025-03-21)
+- [x] Create terrain features (slopes, jumps, valleys) (Completed: 2025-03-21)
+- [x] Fix Vector3 static method capitalization issues (Completed: 2025-03-22)
+- [x] Add visual indicators for terrain steepness (Completed: 2025-03-23)
+
+#### Blocked/Waiting
+- [ ] None
+
+### Milestone 3: Gameplay Elements
+#### To Do
+- [x] Implement Spinfusor weapon with projectile system (Completed: 2025-03-29)
+- [x] Implement grenade mechanics (Completed: 2025-03-31)
+- [x] Create target objects with hit detection (Completed: 2025-04-02)
+- [x] Code review and improvements (Completed: 2025-04-05)
+- [ ] Implement turret AI and shooting mechanics
+- [ ] Add damage system for turrets
+- [ ] Implement scoring system for hitting targets
+
+#### In Progress
+- [ ] None
+
+#### Completed
+- [x] Implement Spinfusor weapon (Completed: 2025-03-29)
+- [x] Add projectile physics for Spinfusor discs (Completed: 2025-03-30)
+- [x] Implement grenade mechanics (Completed: 2025-03-31)
+- [x] Create target objects with hit detection (Completed: 2025-04-02)
+
+#### Blocked/Waiting
+- [ ] None
+
+### Milestone 4: UI & Feedback
+#### To Do
+- [ ] Implement energy meter HUD element
+- [ ] Add speedometer display
+- [ ] Create timer system and display
+- [ ] Implement target counter
+- [ ] Add grenade count display
+- [ ] Create crosshair/reticle for aiming
+- [ ] Design and implement start menu
+- [ ] Create map selection screen
+- [ ] Implement end-of-run results screen
+- [ ] Add visual feedback for hits and damage
+
+#### In Progress
+- [ ] None
+
+#### Completed
+- [ ] None
+
+#### Blocked/Waiting
+- [ ] None
+
+### Milestone 5: Polish & Release
+#### To Do
+- [ ] Add basic sound effects (weapons, jetpack, explosions)
+- [ ] Implement ambient sounds
+- [ ] Optimize performance
+- [ ] Add basic leaderboard functionality
+- [ ] Implement save/load for player progress
+- [ ] Create tutorial elements for first map
+- [ ] Perform testing and bug fixes
+- [ ] Balance difficulty across maps
+- [ ] Prepare for deployment on Cloudflare
+
+#### In Progress
+- [ ] None
+
+#### Completed
+- [ ] None
+
+#### Blocked/Waiting
+- [ ] None
+
+## Notes
+- Task format: "- [ ] Task description" (uncompleted) or "- [x] Task description" (completed)
+- Add dates when tasks are completed: "- [x] Task description (Completed: YYYY-MM-DD)"
+- Add dependencies if needed: "- [ ] Task description (Depends on: Task X)"
+- Priority can be indicated as: (Priority: High/Medium/Low)
+
+## Recent Updates
+- Initial task list created based on GDD MVP Roadmap
+- Completed implementation of core utility classes and systems (2025-03-13)
+- Defined movement states and interfaces (2025-03-13)
+- Implemented basic player controller with WASD movement (2025-03-14)
+- Added jumping mechanics (2025-03-14)
+- Implemented skiing mechanics with slope detection and friction reduction (2025-03-15)
+- Added jetpack system with energy management (2025-03-16)
+- Implemented physics for momentum conservation across movement states (2025-03-17)
+- Created state machine for player movement states with centralized transition logic (2025-03-18)
+- Added collision detection and response system with shape-based collisions (2025-03-19)
+- Implemented camera controls and first-person view with dynamic FOV and camera shake (2025-03-20)
+- Completed terrain generation system with surface types and terrain features for Forest map (2025-03-21)
+- Fixed Vector3 static method capitalization issues in PhysicsSystem.ts and related components (2025-03-22)
+- Implemented visual indicators for terrain steepness with color-coded slope visualization (2025-03-23)
+- Implemented map boundaries with visualization and player interaction handling (2025-03-24)
+- Added start, finish, and checkpoint markers with race timing system and visualization (2025-03-25)
+- Created environmental props system with trees, rocks, bushes, and other natural elements (2025-03-26)
+- Implemented race timing system with checkpoint tracking, split times, and UI display (2025-03-27)
+- Performed code quality improvements: enhanced error handling, optimized performance, improved documentation, and added performance monitoring (2025-03-28)
+- Implemented Spinfusor weapon with projectile system, including weapon component, projectile entity, and physics (2025-03-29)
+- Enhanced projectile physics for Spinfusor discs with realistic aerodynamics, including lift, drag, and spin effects (2025-03-30)
+- Implemented grenade mechanics with timed detonation, bouncing physics, and visual feedback through blinking effect (2025-03-31)
+- Created target objects with hit detection, including different target types (static, moving, spinning), health system, visual feedback, and scoring (2025-04-02)
+- Completed comprehensive code review and improvements for Milestone 3 components. Enhanced error handling, performance optimizations, and type safety across multiple components including TargetEntity, CollisionComponent, TargetHealthComponent, and TargetManager. Added improved serialization support and better debugging capabilities.

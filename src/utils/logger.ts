@@ -1,6 +1,11 @@
 /**
-* Log level enumeration
-*/
+ * Logger.ts
+ * Utility for logging messages with different levels
+ */
+
+/**
+ * Log levels
+ */
 export enum LogLevel {
     DEBUG = 0,
     INFO = 1,
@@ -12,181 +17,142 @@ export enum LogLevel {
 /**
  * Logger configuration
  */
-interface LoggerConfig {
+export interface LoggerConfig {
     /**
-     * Minimum log level to output
+     * Minimum log level to display
      */
-    level: LogLevel;
-
+    minLevel: LogLevel;
+    
     /**
-     * Whether to include timestamps in logs
+     * Whether to include timestamps in log messages
      */
-    timestamps: boolean;
-
+    showTimestamp: boolean;
+    
     /**
-     * Whether to output to console
+     * Whether to include the logger name in log messages
      */
-    console: boolean;
-
-    /**
-     * Custom log handler
-     */
-    handler?: (level: LogLevel, source: string, message: string, data?: any) => void;
+    showLoggerName: boolean;
 }
 
 /**
  * Default logger configuration
  */
-const defaultConfig: LoggerConfig = {
-    level: LogLevel.INFO,
-    timestamps: true,
-    console: true
+const DEFAULT_CONFIG: LoggerConfig = {
+    minLevel: LogLevel.DEBUG,
+    showTimestamp: true,
+    showLoggerName: true
 };
 
 /**
- * Current global logger configuration
+ * Global logger configuration
  */
-let globalConfig: LoggerConfig = { ...defaultConfig };
+let globalConfig: LoggerConfig = { ...DEFAULT_CONFIG };
 
 /**
- * Utility for consistent logging
+ * Set the global logger configuration
+ * @param config New configuration
+ */
+export function setLoggerConfig(config: Partial<LoggerConfig>): void {
+    globalConfig = { ...globalConfig, ...config };
+}
+
+/**
+ * Reset the global logger configuration to defaults
+ */
+export function resetLoggerConfig(): void {
+    globalConfig = { ...DEFAULT_CONFIG };
+}
+
+/**
+ * Logger class for logging messages with different levels
  */
 export class Logger {
-    private source: string;
-
     /**
-     * Create a new logger
-     * @param source Source identifier for this logger
+     * Name of the logger
      */
-    constructor(source: string) {
-        this.source = source;
+    private name: string;
+    
+    /**
+     * Configuration for this logger
+     */
+    private config: LoggerConfig;
+    
+    /**
+     * Creates a new logger
+     * @param name Name of the logger
+     * @param config Configuration for this logger (overrides global config)
+     */
+    constructor(name: string, config?: Partial<LoggerConfig>) {
+        this.name = name;
+        this.config = { ...globalConfig, ...config };
     }
-
+    
     /**
      * Log a debug message
-     * @param message Log message
-     * @param data Optional data to log
+     * @param message Message to log
+     * @param data Additional data to log
      */
-    public debug(message: string, data?: any): void {
+    public debug(message: string, ...data: any[]): void {
         this.log(LogLevel.DEBUG, message, data);
     }
-
+    
     /**
      * Log an info message
-     * @param message Log message
-     * @param data Optional data to log
+     * @param message Message to log
+     * @param data Additional data to log
      */
-    public info(message: string, data?: any): void {
+    public info(message: string, ...data: any[]): void {
         this.log(LogLevel.INFO, message, data);
     }
-
+    
     /**
      * Log a warning message
-     * @param message Log message
-     * @param data Optional data to log
+     * @param message Message to log
+     * @param data Additional data to log
      */
-    public warn(message: string, data?: any): void {
+    public warn(message: string, ...data: any[]): void {
         this.log(LogLevel.WARN, message, data);
     }
-
+    
     /**
      * Log an error message
-     * @param message Log message
-     * @param error Optional error to log
+     * @param message Message to log
+     * @param data Additional data to log
      */
-    public error(message: string, error?: any): void {
-        this.log(LogLevel.ERROR, message, error);
+    public error(message: string, ...data: any[]): void {
+        this.log(LogLevel.ERROR, message, data);
     }
-
+    
     /**
-     * Log a message with specific level
+     * Log a message with the specified level
      * @param level Log level
-     * @param message Log message
-     * @param data Optional data to log
+     * @param message Message to log
+     * @param data Additional data to log
      */
-    private log(level: LogLevel, message: string, data?: any): void {
-        if (level < globalConfig.level) {
+    private log(level: LogLevel, message: string, data: any[]): void {
+        if (level < this.config.minLevel) {
             return;
         }
-
-        // Format message
-        let formattedMessage = `[${this.source}] ${message}`;
-
-        // Add timestamp if configured
-        if (globalConfig.timestamps) {
-            const timestamp = new Date().toISOString();
-            formattedMessage = `[${timestamp}] ${formattedMessage}`;
+        
+        const timestamp = this.config.showTimestamp ? `[${new Date().toISOString()}]` : '';
+        const loggerName = this.config.showLoggerName ? `[${this.name}]` : '';
+        const levelStr = LogLevel[level];
+        
+        const prefix = `${timestamp}${loggerName}[${levelStr}]`;
+        
+        switch (level) {
+            case LogLevel.DEBUG:
+                console.debug(prefix, message, ...data);
+                break;
+            case LogLevel.INFO:
+                console.info(prefix, message, ...data);
+                break;
+            case LogLevel.WARN:
+                console.warn(prefix, message, ...data);
+                break;
+            case LogLevel.ERROR:
+                console.error(prefix, message, ...data);
+                break;
         }
-
-        // Use custom handler if available
-        if (globalConfig.handler) {
-            globalConfig.handler(level, this.source, message, data);
-            return;
-        }
-
-        // Console logging if enabled
-        if (globalConfig.console) {
-            switch (level) {
-                case LogLevel.DEBUG:
-                    console.debug(formattedMessage, data);
-                    break;
-                case LogLevel.INFO:
-                    console.info(formattedMessage, data);
-                    break;
-                case LogLevel.WARN:
-                    console.warn(formattedMessage, data);
-                    break;
-                case LogLevel.ERROR:
-                    console.error(formattedMessage, data);
-                    break;
-            }
-        }
-    }
-
-    /**
-     * Configure global logger settings
-     * @param config Logger configuration
-     */
-    public static configure(config: Partial<LoggerConfig>): void {
-        globalConfig = { ...globalConfig, ...config };
-    }
-
-    /**
-     * Set global minimum log level
-     * @param level Minimum log level
-     */
-    public static setLevel(level: LogLevel): void {
-        globalConfig.level = level;
-    }
-
-    /**
-     * Enable or disable console output
-     * @param enabled Whether console output is enabled
-     */
-    public static enableConsole(enabled: boolean): void {
-        globalConfig.console = enabled;
-    }
-
-    /**
-     * Enable or disable timestamps
-     * @param enabled Whether timestamps are enabled
-     */
-    public static enableTimestamps(enabled: boolean): void {
-        globalConfig.timestamps = enabled;
-    }
-
-    /**
-     * Set custom log handler
-     * @param handler Custom log handler function
-     */
-    public static setHandler(handler: (level: LogLevel, source: string, message: string, data?: any) => void): void {
-        globalConfig.handler = handler;
-    }
-
-    /**
-     * Reset to default configuration
-     */
-    public static resetConfig(): void {
-        globalConfig = { ...defaultConfig };
     }
 }

@@ -1,0 +1,200 @@
+# RunJumpSki - Movement System Implementation Roadmap
+
+## Core Movement Philosophy
+The movement system in RunJumpSki is inspired by Tribes 2's skiing mechanics, emphasizing momentum conservation, skillful terrain traversal, and strategic energy management. The player should feel a sense of freedom and flow when mastering the movement system, with a high skill ceiling that rewards practice.
+
+## Movement States
+1. **Running** - Default state
+   - WASD controls for directional movement
+   - Base speed: 7 units/s
+   - Affected by terrain friction
+   - Transitions: Can jump, start skiing, or activate jetpack
+
+2. **Skiing** - Activated by holding spacebar
+   - Frictionless sliding state
+   - Affected by terrain slope (acceleration on downhill, deceleration on uphill)
+   - Momentum is conserved between slopes
+   - Transitions: Can jump, stop skiing, or activate jetpack
+
+3. **Flying** - After jumping, before landing
+   - Limited air control for steering
+   - Affected by gravity
+   - Momentum inherited from previous state
+   - Transitions: Can start skiing upon landing, activate jetpack
+
+4. **Jetpacking** - Activated by holding RMB
+   - Vertical thrust with some horizontal control
+   - Consumes energy (100 max, -30/s usage, +15/s regen when not in use)
+   - Can be combined with other states
+   - Transitions: Can start/continue skiing, return to flying when energy depleted
+
+## Physics Parameters
+- **Gravity**: 9.8 units/s²
+- **Jump Force**: 7 units
+- **Run Speed**: 7 units/s
+- **Max Speed**: 50 units/s (configurable)
+- **Air Control**: 0.3 (30% of normal control when airborne)
+- **Jetpack Force**: 15 units
+- **Player Mass**: 80 units
+
+## Surface Types and Friction
+- **Default**: 0.5 friction
+- **Snow**: 0.1 friction
+- **Ice**: 0.05 friction
+- **Rock**: 0.7 friction
+- **Metal**: 0.3 friction
+
+## Advanced Movement Mechanics
+1. **Disk Jumping**
+   - Shooting Spinfusor at ground beneath player
+   - Propels player upward and slightly forward
+   - Force: 10 units vertical, 5 units horizontal (in facing direction)
+   - Self-damage: 25% of normal damage
+
+2. **Momentum Inheritance from Weapons**
+   - Spinfusor provides small speed boost when aimed correctly
+   - Most effective when fired opposite to movement direction
+   - Boost: 2-3 units in firing direction
+
+3. **Slope Calculations**
+   - Acceleration = sin(slope_angle) * gravity * slope_factor
+   - Minimum skiable angle: 10 degrees
+   - Optimal skiing angle: 30-45 degrees
+   - slope_factor varies by surface type
+
+4. **Collision Response**
+   - Preserve momentum on glancing collisions
+   - Reduce momentum on direct collisions based on collision angle
+   - Bounce effect on high-speed collisions
+
+5. **Landing Impact**
+   - Landing from heights > 20 units causes brief (0.2s) control reduction
+   - Landing from heights > 40 units causes longer (0.5s) control reduction
+   - No fall damage in early maps (added in later maps)
+
+## Implementation Tasks
+
+### 1. Core Physics Setup
+- [ ] Implement basic physics system with gravity
+- [ ] Create vector math utilities for movement calculations
+- [ ] Set up collision detection system
+- [ ] Implement surface type detection
+
+### 2. Player Controller
+- [ ] Create player entity with physics body
+- [ ] Implement input handling for WASD, spacebar, RMB
+- [ ] Set up camera controls for first-person view
+- [ ] Create movement state machine
+
+### 3. Running State
+- [ ] Implement basic WASD movement
+- [ ] Add acceleration and deceleration
+- [ ] Apply surface friction
+- [ ] Implement speed limiting
+
+### 4. Jumping & Flying State
+- [ ] Implement jump mechanics
+- [ ] Add air control
+- [ ] Create gravity effects
+- [ ] Handle landing detection
+
+### 5. Skiing Mechanics
+- [ ] Implement slope detection
+- [ ] Create skiing state with friction reduction
+- [ ] Add slope-based acceleration
+- [ ] Implement momentum conservation
+- [ ] Add visual and audio feedback for skiing
+
+### 6. Jetpack System
+- [ ] Create energy management system
+- [ ] Implement jetpack thrust
+- [ ] Add energy UI element
+- [ ] Create energy regeneration mechanics
+
+### 7. Advanced Movement
+- [ ] Implement disk jumping
+- [ ] Add weapon momentum inheritance
+- [ ] Create collision response system
+- [ ] Implement landing impact effects
+
+### 8. Movement State Transitions
+- [ ] Create smooth transitions between all states
+- [ ] Ensure momentum conservation during transitions
+- [ ] Add appropriate animation triggers
+- [ ] Implement state-specific audio
+
+### 9. Testing & Refinement
+- [ ] Create test map with various terrain features
+- [ ] Implement movement analytics (speed, airtime, etc.)
+- [ ] Balance parameters for optimal feel
+- [ ] Gather feedback and iterate
+
+## Technical Implementation Details
+
+### Physics Calculation Cycle
+1. Get input from player
+2. Determine current state and applicable physics rules
+3. Calculate forces (gravity, input, jetpack, etc.)
+4. Apply forces to velocity
+5. Check for collisions and adjust velocity
+6. Update position based on velocity
+7. Check for state transitions
+8. Update energy and other resources
+
+### State Transition Logic
+```
+if (grounded) {
+    if (skiKeyPressed) {
+        state = SKIING;
+    } else {
+        state = RUNNING;
+    }
+    
+    if (jumpKeyPressed) {
+        applyJumpForce();
+        state = FLYING;
+    }
+} else {
+    state = FLYING;
+}
+
+if (jetpackKeyPressed && energy > 0) {
+    applyJetpackForce();
+    state = JETPACKING;
+    consumeEnergy();
+}
+```
+
+### Slope Calculation
+```
+// Detect ground normal
+Vector3 groundNormal = getGroundNormal();
+
+// Calculate slope angle
+float slopeAngle = Math.acos(Vector3.Dot(groundNormal, Vector3.Up));
+
+// Calculate slope direction
+Vector3 slopeDirection = Vector3.Cross(Vector3.Cross(groundNormal, Vector3.Up), groundNormal).normalize();
+
+// Calculate acceleration based on slope
+float acceleration = Math.sin(slopeAngle) * gravity * getSlopeFactor(surfaceType);
+
+// Apply acceleration to velocity
+velocity += slopeDirection * acceleration * deltaTime;
+```
+
+## Debugging Tools
+- Speed display
+- Current state indicator
+- Energy meter
+- Ground normal visualization
+- Slope angle display
+- Collision response visualization
+
+## References
+- Original Tribes 2 movement parameters
+- Source code in src_original/components/movement.ts
+- Physics system in src_original/types/physics.ts
+
+## Version History
+- v0.1: Initial roadmap creation

@@ -1,112 +1,124 @@
 # RunJumpSki
 
-A first-person speedrun game inspired by Tribes 2's skiing mechanics. Core gameplay focuses on maintaining momentum through skillful terrain traversal, managing jetpack energy, and shooting targets while avoiding or destroying turrets.
+A fast-paced first-person skiing game with jetpacks, inspired by classic skiing games and Tribes.
 
-## Project Overview
+## Overview
 
-RunJumpSki combines fluid movement mechanics with shooting elements, emphasizing speed and skill. The game is built using TypeScript and Babylon.js, with Cloudflare for hosting and backend services.
+RunJumpSki is a TypeScript-based game that combines skiing mechanics with jetpack-powered movement. Players navigate through terrain with varying surface types, using momentum and physics to achieve high speeds and perform impressive jumps.
 
-### Key Technical Choices
+## Key Features
 
-- **TypeScript** for type safety and better development experience
-- **Babylon.js** as the core 3D engine for rendering and physics
-- **Vite** for fast development and building
-- **Component-based architecture** for modularity and flexibility
-- **Cloudflare ecosystem** for hosting and backend services
+- **Dynamic Movement System**: Seamlessly transition between running, skiing, and jetpacking
+- **Physics-Based Gameplay**: Realistic momentum conservation and surface friction
+- **Terrain System**: Procedurally generated terrain with different surface types (snow, ice, rock, metal)
+- **Map Boundaries**: Configurable boundary system with multiple behavior options
+- **Visual Indicators**: Color-coded terrain steepness visualization and boundary warnings
 
-## Getting Started
+## Game Mechanics
 
-### Prerequisites
+### Movement
 
-- Node.js (v16 or higher)
-- npm (v7 or higher)
+- **Running**: Basic movement on flat surfaces
+- **Skiing**: Reduced friction when moving down slopes
+- **Jetpacking**: Vertical thrust with limited energy
+- **Momentum Conservation**: Maintain speed across different movement states
 
-### Installation
+### Terrain
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/runjumpski.git
-   cd runjumpski
-   ```
+- **Surface Types**: Different friction properties for snow, ice, rock, and metal
+- **Procedural Generation**: Dynamically created terrain with configurable features
+- **Visual Indicators**: Color coding for slope steepness and surface types
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+## Map Boundary System
 
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
+The map boundary system prevents players from leaving the playable area and provides visual feedback when approaching boundaries.
 
-The game will be available at `http://localhost:3000`.
+### Features
+
+- **Configurable Boundaries**: Set custom X, Y, and Z limits for the playable area
+- **Multiple Behaviors**: Choose how the game handles boundary violations:
+  - `block`: Stop the player at the boundary
+  - `bounce`: Bounce the player off the boundary with configurable bounce factor
+  - `teleport`: Teleport the player to the opposite boundary
+  - `reset`: Reset the player to a specified position
+  - `damage`: Apply damage to the player and reset them
+- **Visual Indicators**: Optional visual warnings when approaching boundaries
+- **Event System Integration**: Fires events for boundary warnings, out-of-bounds, and player resets
+
+### Usage
+
+```typescript
+// Create a map boundary component
+const mapBoundary = new MapBoundaryComponent({
+    minX: -100,
+    maxX: 100,
+    minY: -50,
+    maxY: 150,
+    minZ: -100,
+    maxZ: 100,
+    useVisualIndicators: true,
+    boundaryBehavior: 'bounce',
+    bounceFactor: 0.8
+});
+
+// Add to player entity
+player.addComponent('mapBoundary', mapBoundary);
+
+// Enable visualization in the renderer
+renderer.toggleMapBoundaries();
+```
 
 ## Project Structure
 
 ```
-runjumpski/
-├── src/               # Source code
-│   ├── types/         # TypeScript type definitions
-│   ├── core/          # Core game systems
-│   ├── components/    # Entity components
-│   ├── entities/      # Game entities
-│   ├── terrain/       # Terrain systems
-│   ├── ui/            # User interface
-│   ├── utils/         # Utility functions
-│   ├── effects/       # Visual effects
-│   └── index.ts       # Main entry point
-├── workers/           # Cloudflare Workers
-├── public/            # Static assets
-├── tests/             # Test files
-└── ...
+src/
+├── components/     # Game components (physics, terrain, etc.)
+├── config/         # Game configuration
+├── core/           # Core systems (rendering, physics, etc.)
+├── entities/       # Entity classes
+├── systems/        # Game systems
+├── types/          # TypeScript type definitions
+└── utils/          # Utility functions
 ```
 
-## Development
+## Development Status
 
-### Available Scripts
+The project is currently in active development. See `GameDevelopmentTasks.txt` for the current roadmap and progress.
 
-- `npm run dev` - Start the development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview the production build locally
-- `npm run test` - Run tests
-- `npm run lint` - Run ESLint
-- `npm run format` - Format code with Prettier
-- `npm run deploy` - Deploy to Cloudflare
+### Completed Features
 
-### Key Technologies
+- Core movement system with running, skiing, and jetpacking
+- Physics system with momentum conservation
+- Terrain generation with different surface types
+- Visual indicators for terrain steepness
+- Map boundaries with multiple behavior options
 
-- **Babylon.js** - 3D rendering and physics
-- **TypeScript** - Type-safe JavaScript
-- **Vite** - Fast development and building
-- **Jest** - Testing framework
-- **ESLint/Prettier** - Code quality and formatting
-- **Cloudflare Workers** - Serverless backend
+### In Progress
 
-## Game Features
+- Start and finish line markers
+- Environmental props (trees, rocks)
 
-- **Skiing Mechanics** - Slope-based acceleration and momentum conservation
-- **Jetpack System** - Energy management and aerial control
-- **Weapons** - Projectile physics with velocity inheritance
-- **Terrain** - Dynamic terrain with surface properties
-- **Targets & Turrets** - Interactive game elements
+## Getting Started
 
-## Deployment
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Build the project: `npm run build`
+4. Run the development server: `npm start`
 
-The game is deployed using Cloudflare Pages and Workers. Configure your deployment in the `wrangler.toml` file.
+## Testing
 
-## Contributing
+Run the test suite with:
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+```
+npm test
+```
+
+Individual tests can be run with:
+
+```
+npm test -- --filter=MapBoundaryTest
+```
 
 ## License
 
-[MIT License](LICENSE)
-
-## Acknowledgments
-
-- Inspired by Tribes 2's skiing mechanics
-- Built with Babylon.js
+This project is licensed under the MIT License - see the LICENSE file for details.

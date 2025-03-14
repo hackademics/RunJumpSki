@@ -1,195 +1,141 @@
-import { Vector3 } from '@babylonjs/core';
-import { GameEngine } from './core/engine';
-import { GameLevel } from './level/game-level';
-import { Logger, LogLevel } from './utils/logger';
+/**
+ * index.ts
+ * Main entry point for the RunJumpSki game
+ */
+
+import { GameScene } from './scenes/GameScene';
+import { Logger } from './utils/Logger';
+import { GameConstants } from './config/Constants';
 
 /**
- * Main entry point for the game
+ * Main game class
  */
 class RunJumpSki {
     private logger: Logger;
-    private engine?: GameEngine;
-    private level?: GameLevel;
-    private canvas?: HTMLCanvasElement;
-
+    private gameScene?: GameScene;
+    private canvas: HTMLCanvasElement;
+    
+    /**
+     * Create a new RunJumpSki game
+     */
     constructor() {
-        // Configure logger
-        Logger.setLevel(LogLevel.DEBUG);
-        Logger.enableConsole(true);
-        Logger.enableTimestamps(true);
-
         this.logger = new Logger('RunJumpSki');
+        
+        // Create canvas
+        this.canvas = document.createElement('canvas');
+        this.canvas.width = GameConstants.DEFAULT_WIDTH;
+        this.canvas.height = GameConstants.DEFAULT_HEIGHT;
+        this.canvas.style.display = 'block';
+        this.canvas.style.margin = 'auto';
+        this.canvas.style.backgroundColor = '#000';
+        
+        // Add canvas to document
+        document.body.appendChild(this.canvas);
+        
+        // Set up event listeners
+        this.setupEventListeners();
+        
+        this.logger.debug('RunJumpSki created');
     }
-
+    
     /**
      * Initialize the game
      */
-    public async init(): Promise<void> {
+    public init(): void {
+        this.logger.debug('Initializing RunJumpSki');
+        
         try {
-            this.logger.info('Initializing RunJumpSki...');
-
-            // Get canvas element
-            this.canvas = document.getElementById('renderCanvas') as unknown as HTMLCanvasElement;
-            if (!this.canvas) {
-                throw new Error('Canvas element not found');
-            }
-
-            // Initialize game engine
-            this.engine = new GameEngine(this.canvas);
-
-            // Set up window resize handler
-            window.addEventListener('resize', () => {
-                if (this.engine) {
-                    this.engine.getEngine().resize();
-                }
+            // Create game scene
+            this.gameScene = new GameScene({
+                canvas: this.canvas,
+                width: this.canvas.width,
+                height: this.canvas.height
             });
-
-            // Set up initialization complete callback
-            window.addEventListener('load', () => {
-                this.start();
-            });
-
-            this.logger.info('Initialization complete');
+            
+            // Initialize game scene
+            this.gameScene.init();
+            
+            this.logger.debug('RunJumpSki initialized');
         } catch (error) {
-            this.logger.error('Failed to initialize game', error);
-            this.displayError('Failed to initialize game. Check console for details.');
-            throw error;
+            this.logger.error('Failed to initialize RunJumpSki', error);
         }
     }
-
+    
     /**
      * Start the game
      */
-    public async start(): Promise<void> {
-        if (!this.engine) {
-            this.logger.error('Cannot start game: engine not initialized');
+    public start(): void {
+        this.logger.debug('Starting RunJumpSki');
+        
+        if (!this.gameScene) {
+            this.logger.error('Cannot start game: Game scene not initialized');
             return;
         }
-
+        
         try {
-            this.logger.info('Starting RunJumpSki...');
-
-            // Create and load level
-            this.level = new GameLevel(this.engine, {
-                name: 'Tutorial',
-                terrain: {
-                    width: 1000,
-                    depth: 1000,
-                    maxHeight: 200,
-                    seed: Math.random() * 10000
-                },
-                playerSpawn: new Vector3(0, 50, 0),
-                targets: [
-                    new Vector3(50, 0, 50),
-                    new Vector3(-50, 0, 50),
-                    new Vector3(50, 0, -50),
-                    new Vector3(-50, 0, -50)
-                ],
-                turrets: [
-                    new Vector3(100, 0, 100),
-                    new Vector3(-100, 0, 100),
-                    new Vector3(100, 0, -100),
-                    new Vector3(-100, 0, -100)
-                ]
-            });
-
-            await this.level.load();
-
-            // Start the game loop
-            this.engine.start();
-
-            // Set up loop for level updates
-            this.engine.getEvents().on('update', (data) => {
-                if (this.level) {
-                    this.level.update(data.deltaTime);
-                }
-            });
-
-            // Display controls
-            this.displayControls();
-
-            this.logger.info('Game started successfully');
+            // Start game scene
+            this.gameScene.start();
+            
+            this.logger.debug('RunJumpSki started');
         } catch (error) {
-            this.logger.error('Failed to start game', error);
-            this.displayError('Failed to start game. Check console for details.');
+            this.logger.error('Failed to start RunJumpSki', error);
         }
     }
-
+    
     /**
-     * Stop the game
+     * Set up event listeners
      */
-    public stop(): void {
-        if (this.engine) {
-            this.engine.stop();
+    private setupEventListeners(): void {
+        // Handle window resize
+        window.addEventListener('resize', this.handleResize.bind(this));
+        
+        // Handle fullscreen toggle
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'F11') {
+                event.preventDefault();
+                this.toggleFullscreen();
+            }
+        });
+    }
+    
+    /**
+     * Handle window resize
+     */
+    private handleResize(): void {
+        // Update canvas size
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        
+        this.canvas.width = width;
+        this.canvas.height = height;
+        
+        // Update renderer size if game scene exists
+        if (this.gameScene) {
+            // TODO: Add method to update renderer size
         }
-
-        this.logger.info('Game stopped');
+        
+        this.logger.debug(`Resized canvas to ${width}x${height}`);
     }
-
+    
     /**
-     * Display controls information
+     * Toggle fullscreen mode
      */
-    private displayControls(): void {
-        const controlsDiv = document.createElement('div');
-        controlsDiv.id = 'controls';
-        controlsDiv.style.position = 'absolute';
-        controlsDiv.style.bottom = '10px';
-        controlsDiv.style.left = '10px';
-        controlsDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        controlsDiv.style.color = 'white';
-        controlsDiv.style.padding = '10px';
-        controlsDiv.style.borderRadius = '5px';
-        controlsDiv.style.fontFamily = 'Arial, sans-serif';
-        controlsDiv.style.zIndex = '100';
-
-        controlsDiv.innerHTML = `
-      <h3>Controls:</h3>
-      <ul>
-        <li>WASD / Arrow Keys - Move</li>
-        <li>Space - Jump</li>
-        <li>Shift - Ski</li>
-        <li>Control - Jetpack</li>
-        <li>Mouse - Look around</li>
-        <li>Click canvas to capture mouse</li>
-      </ul>
-    `;
-
-        document.body.appendChild(controlsDiv);
-    }
-
-    /**
-     * Display error message
-     * @param message Error message to display
-     */
-    private displayError(message: string): void {
-        const errorDiv = document.createElement('div');
-        errorDiv.id = 'error';
-        errorDiv.style.position = 'absolute';
-        errorDiv.style.top = '50%';
-        errorDiv.style.left = '50%';
-        errorDiv.style.transform = 'translate(-50%, -50%)';
-        errorDiv.style.backgroundColor = 'rgba(200, 0, 0, 0.8)';
-        errorDiv.style.color = 'white';
-        errorDiv.style.padding = '20px';
-        errorDiv.style.borderRadius = '5px';
-        errorDiv.style.fontFamily = 'Arial, sans-serif';
-        errorDiv.style.zIndex = '100';
-        errorDiv.style.textAlign = 'center';
-
-        errorDiv.innerHTML = `
-      <h2>Error</h2>
-      <p>${message}</p>
-    `;
-
-        document.body.appendChild(errorDiv);
+    private toggleFullscreen(): void {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch((error) => {
+                this.logger.error('Failed to enter fullscreen mode', error);
+            });
+        } else {
+            document.exitFullscreen().catch((error) => {
+                this.logger.error('Failed to exit fullscreen mode', error);
+            });
+        }
     }
 }
 
-// Create and initialize the game
-const game = new RunJumpSki();
-game.init().catch(error => {
-    console.error('Failed to initialize game', error);
+// Create and start the game when the DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    const game = new RunJumpSki();
+    game.init();
+    game.start();
 });
-
-// Export game instance for debugging
-(window as any).game = game;
