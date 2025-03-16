@@ -1,0 +1,536 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+---
+description: Code and structure rules for the project
+globs: 
+alwaysApply: true
+---
+# RunJumpSki Development Rules
+
+## Overview
+
+This rules file provides guidelines for consistent LLM-assisted development of the RunJumpSki project. Follow these rules for all code generation, architecture decisions, and implementation approaches.
+
+## Code Structure
+
+### File Organization
+
+- One class per file (except for small related classes)
+- Follow the established project structure
+- Place new files in the correct directories based on their purpose
+- Use barrel files (index.ts) for cleaner imports
+
+### Naming Conventions
+
+- **Files**: PascalCase for classes, camelCase for utilities
+- **Classes**: PascalCase (e.g., `PlayerEntity`)
+- **Interfaces**: PascalCase with `I` prefix (e.g., `IComponent`)
+- **Types**: PascalCase (e.g., `Vector3`)
+- **Functions/Methods**: camelCase (e.g., `getPosition()`)
+- **Properties**: camelCase (e.g., `currentSpeed`)
+- **Constants**: UPPER_SNAKE_CASE (e.g., `MAX_SPEED`)
+- **Enums**: PascalCase with values in PascalCase or UPPER_SNAKE_CASE
+
+### Import Order
+
+1. External libraries
+2. Core engine imports
+3. Component/entity imports
+4. Utility imports
+5. Type imports
+
+```typescript
+// External libraries
+import * as BABYLON from 'babylonjs';
+
+// Core engine imports
+import { Engine } from '../core/Engine';
+import { EventBus } from '../core/events/EventBus';
+
+// Component/entity imports
+import { Component } from '../components/Component';
+import { PlayerEntity } from '../entities/PlayerEntity';
+
+// Utility imports
+import { Logger } from '../utils/Logger';
+
+// Type imports
+import { Vector3 } from '../types/Vector3';
+```
+
+## TypeScript Patterns
+
+### Use Interfaces for Public APIs
+
+Always define interfaces for components and systems:
+
+```typescript
+// Define the interface
+export interface IMovementComponent extends IComponent {
+    move(direction: Vector3): void;
+    getVelocity(): Vector3;
+    setMaxSpeed(speed: number): void;
+}
+
+// Implement the interface
+export class MovementComponent extends Component implements IMovementComponent {
+    // Implementation
+}
+```
+
+### Leverage Generics
+
+Use generics for type-safe reusable code:
+
+```typescript
+export class StateManager<TState extends string, TData = any> {
+    private currentState: TState;
+    private data: TData | undefined;
+    
+    public setState(state: TState, data?: TData): void {
+        this.currentState = state;
+        this.data = data;
+    }
+    
+    public getState(): TState {
+        return this.currentState;
+    }
+    
+    public getData(): TData | undefined {
+        return this.data;
+    }
+}
+
+// Usage
+type MovementState = 'idle' | 'walking' | 'running' | 'skiing' | 'flying';
+const movementStateManager = new StateManager<MovementState, {speed: number}>();
+```
+
+### Discriminated Unions for State Management
+
+Use discriminated unions for complex state:
+
+```typescript
+type PlayerState = 
+    | { type: 'idle' }
+    | { type: 'running', speed: number }
+    | { type: 'skiing', speed: number, surfaceAngle: number }
+    | { type: 'flying', speed: number, height: number, energy: number };
+
+function handlePlayerState(state: PlayerState) {
+    switch (state.type) {
+        case 'idle':
+            // Handle idle state
+            break;
+        case 'running':
+            // Access state.speed
+            break;
+        case 'skiing':
+            // Access state.speed and state.surfaceAngle
+            break;
+        case 'flying':
+            // Access state.speed, state.height, and state.energy
+            break;
+    }
+}
+```
+
+### Immutability
+
+Prefer immutable data where possible:
+
+```typescript
+// Use readonly properties
+export interface Vector3 {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+}
+
+// Return new objects instead of mutating
+export function addVectors(a: Vector3, b: Vector3): Vector3 {
+    return {
+        x: a.x + b.x,
+        y: a.y + b.y,
+        z: a.z + b.z
+    };
+}
+```
+
+## Component Development
+
+### Component Template
+
+Follow this structure for all components:
+
+```typescript
+/**
+ * Interface for the component
+ */
+export interface IExampleComponent extends IComponent {
+    // Public methods
+    doSomething(): void;
+    getSomeValue(): number;
+    setSomeValue(value: number): void;
+}
+
+/**
+ * Configuration options for the component
+ */
+export interface ExampleComponentOptions {
+    initialValue: number;
+    maxValue: number;
+    // Other options
+}
+
+/**
+ * Implementation of the component
+ */
+export class ExampleComponent extends Component implements IExampleComponent {
+    public readonly type: string = 'example';
+    
+    private value: number;
+    private maxValue: number;
+    
+    constructor(options: ExampleComponentOptions) {
+        super({
+            type: 'example',
+            enabled: true
+        });
+        
+        this.value = options.initialValue;
+        this.maxValue = options.maxValue;
+    }
+    
+    /**
+     * Initialize the component
+     */
+    public override init(entity: IEntity): void {
+        super.init(entity);
+        // Additional initialization
+    }
+    
+    /**
+     * Update the component
+     */
+    public override update(deltaTime: number): void {
+        if (!this.isEnabled()) return;
+        
+        // Component-specific update logic
+    }
+    
+    /**
+     * Clean up resources
+     */
+    public override dispose(): void {
+        // Component-specific cleanup
+        
+        super.dispose();
+    }
+    
+    // Implement interface methods
+    public doSomething(): void {
+        // Implementation
+    }
+    
+    public getSomeValue(): number {
+        return this.value;
+    }
+    
+    public setSomeValue(value: number): void {
+        this.value = Math.min(value, this.maxValue);
+    }
+    
+    // Private methods
+    private someHelperMethod(): void {
+        // Implementation
+    }
+}
+```
+
+### Event Handling
+
+Use the event system for component communication:
+
+```typescript
+// Define event types
+export interface GameEvents {
+    'player:move': {
+        position: Vector3,
+        velocity: Vector3
+    };
+    'player:jump': {
+        force: number
+    };
+    'player:collision': {
+        point: Vector3,
+        normal: Vector3,
+        entity?: IEntity
+    };
+}
+
+// Subscribe to events
+export class PlayerController extends Component {
+    public override init(entity: IEntity): void {
+        super.init(entity);
+        
+        // Subscribe to events
+        EventBus.getInstance().on('player:collision', this.handleCollision.bind(this));
+    }
+    
+    private handleCollision(data: GameEvents['player:collision']): void {
+        // Handle collision
+    }
+    
+    public override dispose(): void {
+        // Unsubscribe from events
+        EventBus.getInstance().off('player:collision', this.handleCollision.bind(this));
+        
+        super.dispose();
+    }
+}
+```
+
+### Error Handling
+
+Use custom error types and proper error propagation:
+
+```typescript
+export class ComponentError extends Error {
+    constructor(
+        public readonly componentType: string,
+        public readonly entityId: string | undefined,
+        message: string
+    ) {
+        super(`${componentType}${entityId ? ` (${entityId})` : ''}: ${message}`);
+        this.name = 'ComponentError';
+    }
+}
+
+export class MovementComponent extends Component {
+    public move(direction: Vector3): void {
+        try {
+            // Implementation
+        } catch (error) {
+            throw new ComponentError('movement', this.entity?.id, 'Failed to move: ' + error.message);
+        }
+    }
+}
+```
+
+## Babylon.js Integration
+
+### Scene Management
+
+Work with a central scene manager:
+
+```typescript
+export class SceneManager {
+    private static instance: SceneManager;
+    private scene: BABYLON.Scene | undefined;
+    private engine: BABYLON.Engine | undefined;
+    
+    public static getInstance(): SceneManager {
+        if (!SceneManager.instance) {
+            SceneManager.instance = new SceneManager();
+        }
+        return SceneManager.instance;
+    }
+    
+    public initialize(canvas: HTMLCanvasElement): void {
+        this.engine = new BABYLON.Engine(canvas, true);
+        this.scene = new BABYLON.Scene(this.engine);
+        
+        // Configure scene
+        this.scene.gravity = new BABYLON.Vector3(0, -9.81, 0);
+        this.scene.collisionsEnabled = true;
+    }
+    
+    public getScene(): BABYLON.Scene {
+        if (!this.scene) {
+            throw new Error('Scene not initialized');
+        }
+        return this.scene;
+    }
+    
+    public getEngine(): BABYLON.Engine {
+        if (!this.engine) {
+            throw new Error('Engine not initialized');
+        }
+        return this.engine;
+    }
+    
+    public startRenderLoop(): void {
+        if (!this.engine || !this.scene) {
+            throw new Error('Engine or scene not initialized');
+        }
+        
+        this.engine.runRenderLoop(() => {
+            this.scene!.render();
+        });
+    }
+}
+```
+
+### Physics Integration
+
+Use Babylon.js physics with our component system:
+
+```typescript
+export class PhysicsComponent extends Component implements IPhysicsComponent {
+    public readonly type: string = 'physics';
+    
+    private body: BABYLON.PhysicsImpostor | undefined;
+    private mesh: BABYLON.Mesh | undefined;
+    
+    public override init(entity: IEntity): void {
+        super.init(entity);
+        
+        const renderComponent = entity.getComponent<IRenderComponent>('render');
+        if (!renderComponent) {
+            throw new ComponentError('physics', entity.id, 'Entity must have a render component');
+        }
+        
+        this.mesh = renderComponent.getMesh();
+        if (!this.mesh) {
+            throw new ComponentError('physics', entity.id, 'Render component must have a mesh');
+        }
+        
+        // Create physics impostor
+        this.body = new BABYLON.PhysicsImpostor(
+            this.mesh,
+            BABYLON.PhysicsImpostor.BoxImpostor,
+            { mass: 1, friction: 0.5, restitution: 0.7 },
+            SceneManager.getInstance().getScene()
+        );
+    }
+    
+    public override dispose(): void {
+        if (this.body) {
+            this.body.dispose();
+            this.body = undefined;
+        }
+        
+        super.dispose();
+    }
+}
+```
+
+## Testing Guidelines
+
+### Unit Testing with Jest
+
+```typescript
+describe('MovementComponent', () => {
+    let component: MovementComponent;
+    let entity: IEntity;
+    
+    beforeEach(() => {
+        // Set up
+        entity = createMockEntity();
+        component = new MovementComponent({
+            maxSpeed: 10,
+            acceleration: 1
+        });
+        component.init(entity);
+    });
+    
+    afterEach(() => {
+        // Clean up
+        component.dispose();
+    });
+    
+    test('should limit speed to max speed', () => {
+        // Arrange
+        const direction = { x: 1, y: 0, z: 0 };
+        
+        // Act
+        for (let i = 0; i < 20; i++) {
+            component.move(direction);
+            component.update(1/60);
+        }
+        
+        // Assert
+        const velocity = component.getVelocity();
+        expect(velocity.x).toBeLessThanOrEqual(10);
+    });
+});
+```
+
+### Mock Creation Helpers
+
+```typescript
+export function createMockEntity(id: string = 'test-entity'): IEntity {
+    return {
+        id,
+        addComponent: jest.fn().mockImplementation((component) => {
+            component.init({ id });
+            return component;
+        }),
+        getComponent: jest.fn().mockReturnValue(undefined),
+        removeComponent: jest.fn().mockReturnValue(true),
+        update: jest.fn(),
+        dispose: jest.fn()
+    };
+}
+```
+
+## Context Recovery
+
+If context is lost during development:
+
+1. Reference `ProjectStatus.md` to see what's been implemented
+2. Check `GameRoadmap.md` for architectural guidance
+3. Check existing files in the repository for patterns
+4. Follow these steps for specific systems:
+
+### Player Movement Recovery
+
+1. Check `src/components/movement` for existing movement components
+2. Check `src/game/player` for player-specific implementations
+3. Look at existing tests for examples of expected behavior
+4. Review interfaces to understand component contracts
+
+### Skiing Mechanics Recovery
+
+1. Check `src/game/player/skiing` for skiing implementation
+2. Review movement state management for state transitions
+3. Check physics system for slope detection
+4. Review jetpack integration for combined movement
+
+### Weapon System Recovery
+
+1. Check `src/components/weapon` for weapon base classes
+2. Check `src/game/weapons` for specific implementations
+3. Review projectile physics for implementation details
+4. Check event system for firing and impact events
+
+## Conclusion
+
+Follow these rules to maintain consistent, high-quality code throughout the RunJumpSki project. When in doubt, refer to existing implementations, the GameRoadmap.md document, and standard TypeScript/Babylon.js best practices.
+
+## Recovery Fast-Track
+
+If you need to quickly reestablish context after a disruption:
+
+1. **Project Status**: Check [ProjectStatus.md](mdc:ProjectStatus.md) for implementation status
+2. **Architecture**: Review GameRoadmap.md for system design
+3. **Progress**: Look at the most recently modified files in the repository
+4. **Standards**: Review this rules file for coding patterns
+
+Remember the key principles:
+- Separation of core engine from game-specific code
+- Component-based architecture
+- Strong typing with TypeScript
+- Event-based communication between systems
+- Clean error handling and validation
+
+When developing a new feature, always:
+1. Start with interface definition
+2. Create tests for expected behavior
+3. Implement the component/system
+4. Integrate with existing systems
+5. Update ProjectStatus.md
