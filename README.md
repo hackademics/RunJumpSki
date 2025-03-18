@@ -1,54 +1,45 @@
 # RunJumpSki
 
-A first-person speedrun game inspired by Tribes 2's skiing mechanics.
+A first-person speedrun game inspired by Tribes 2's skiing mechanics, built with Babylon.js.
 
-## Overview
+## Project Overview
 
-RunJumpSki is a fast-paced, skill-based game where players race through expansive maps, using skiing and jetpack mechanics to maintain momentum while avoiding hazards and shooting targets to reduce their completion time.
+RunJumpSki is a fast-paced action game focused on momentum-based movement, where players race through expansive maps, avoid hazards, shoot targets, and aim for the fastest completion times.
 
-## Getting Started
+## Core Features
 
-### Prerequisites
-
-- Node.js (v14 or later)
-- npm (v6 or later)
-
-### Installation
-
-1. Clone the repository
-2. Install dependencies:
-   `
-   npm install
-   `
-3. Start the development server:
-   `
-   npm start
-   `
-4. Open your browser and navigate to http://localhost:9000
+- First-Person perspective with momentum-based movement
+- Skiing and jetpack mechanics for traversal
+- Target shooting for time reductions
+- Multiple routes and strategies per map
+- Speedrun-focused gameplay
 
 ## Development
 
-### Building the Project
-
-`
-npm run build
-`
-
-### Running Tests
-
-`
-npm test
-`
+This project uses:
+- TypeScript for type-safe code
+- Babylon.js for 3D rendering and physics
+- Entity-Component System architecture
+- Jest for testing
 
 ## Project Structure
 
-- src/core/ - Core game engine systems
-- src/components/ - Reusable game components
-- src/game/ - Game-specific implementations
-- src/data/ - Game data and configurations
-- src/utils/ - Utility functions
-- src/types/ - TypeScript type definitions
+- src/ - Source code
+  - core/ - Core engine systems
+  - game/ - Game-specific implementations
+  - 	ypes/ - TypeScript type definitions
+- 	ests/ - Test files
+- docs/ - Documentation
+
+## Setup
+
+1. Clone the repository
+2. Run \
+pm install\ to install dependencies
+3. Run \
+pm run start\ to start the development server
+4. Open \http://localhost:9000\ in your browser
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT
