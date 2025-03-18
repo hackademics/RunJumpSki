@@ -1,0 +1,52 @@
+{
+    "name":  "runjumpski",
+    "version":  "1.0.0",
+    "description":  "A first-person speedrun game inspired by Tribes 2\u0027s skiing mechanics, built with Babylon.js.",
+    "main":  "index.js",
+    "directories":  {
+                        "doc":  "docs",
+                        "test":  "tests"
+                    },
+    "scripts":  {
+                    "start":  "webpack serve --mode development",
+                    "build":  "webpack --mode production",
+                    "clean":  "rimraf dist coverage",
+                    "lint":  "eslint . --ext .ts",
+                    "lint:fix":  "eslint . --ext .ts --fix",
+                    "format":  "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
+                    "test":  "jest",
+                    "test:watch":  "jest --watch",
+                    "test:coverage":  "jest --coverage",
+                    "dev":  "concurrently \"npm run start\" \"npm run test:watch\""
+                },
+    "keywords":  [
+
+                 ],
+    "author":  "",
+    "license":  "ISC",
+    "dependencies":  {
+                         "babylonjs":  "^7.53.3",
+                         "babylonjs-gui":  "^7.53.3",
+                         "babylonjs-inspector":  "^7.53.3",
+                         "babylonjs-loaders":  "^7.53.3",
+                         "babylonjs-materials":  "^7.53.3"
+                     },
+    "devDependencies":  {
+                            "@types/jest":  "^29.5.14",
+                            "@typescript-eslint/eslint-plugin":  "^8.26.1",
+                            "@typescript-eslint/parser":  "^8.26.1",
+                            "concurrently":  "^9.1.2",
+                            "eslint":  "^9.22.0",
+                            "eslint-config-prettier":  "^10.1.1",
+                            "eslint-plugin-prettier":  "^5.2.3",
+                            "jest":  "^29.7.0",
+                            "prettier":  "^3.5.3",
+                            "rimraf":  "^6.0.1",
+                            "ts-jest":  "^29.2.6",
+                            "ts-loader":  "^9.5.2",
+                            "typescript":  "^5.8.2",
+                            "webpack":  "^5.98.0",
+                            "webpack-cli":  "^6.0.1",
+                            "webpack-dev-server":  "^5.2.0"
+                        }
+}
