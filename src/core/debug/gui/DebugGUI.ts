@@ -175,7 +175,6 @@ export class DebugGUI {
     // Create group header
     const header = new GUI.StackPanel();
     header.height = '30px';
-    (header as any).isHorizontal = true;
     header.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
 
     // Create expand/collapse button
@@ -271,7 +270,7 @@ export class DebugGUI {
   private createParameterControl(parameter: TweakableParameter<any>, container: GUI.StackPanel): void {
     const control = new GUI.StackPanel();
     control.height = '30px';
-    control.isHorizontal = true;
+    control.isVertical = false;
     control.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
 
     // Create parameter name label
@@ -309,7 +308,6 @@ export class DebugGUI {
    */
   private createNumericControl(parameter: NumericParameter): GUI.Control {
     const container = new GUI.StackPanel();
-    (container as any).isHorizontal = true;
     container.width = '150px';
 
     // Create value display
@@ -322,8 +320,8 @@ export class DebugGUI {
 
     // Create increment/decrement buttons
     const buttonContainer = new GUI.StackPanel();
-    buttonContainer.isHorizontal = true;
     buttonContainer.width = '80px';
+    buttonContainer.isVertical = false;
 
     const minusButton = new GUI.TextBlock();
     minusButton.text = '-';
@@ -397,7 +395,6 @@ export class DebugGUI {
    */
   private createOptionControl(parameter: OptionParameter<any>): GUI.Control {
     const container = new GUI.StackPanel();
-    (container as any).isHorizontal = true;
     container.width = '150px';
 
     // Create value display
@@ -410,7 +407,6 @@ export class DebugGUI {
 
     // Create next/previous buttons
     const buttonContainer = new GUI.StackPanel();
-    buttonContainer.isHorizontal = true;
     buttonContainer.width = '50px';
 
     const prevButton = new GUI.TextBlock();
@@ -449,14 +445,12 @@ export class DebugGUI {
    */
   private createVector3Control(parameter: Vector3Parameter): GUI.Control {
     const container = new GUI.StackPanel();
-    (container as any).isHorizontal = true;
     container.width = '200px';
 
     // Create component controls
     const components: ('x' | 'y' | 'z')[] = ['x', 'y', 'z'];
     components.forEach((component, index) => {
       const componentContainer = new GUI.StackPanel();
-      (componentContainer as any).isHorizontal = true;
       componentContainer.width = '60px';
 
       // Create value display
@@ -469,7 +463,6 @@ export class DebugGUI {
 
       // Create increment/decrement buttons
       const buttonContainer = new GUI.StackPanel();
-      (buttonContainer as any).isHorizontal = true;
       buttonContainer.width = '20px';
 
       const minusButton = new GUI.TextBlock();
@@ -617,5 +610,24 @@ export class DebugGUI {
    */
   public dispose(): void {
     this.advancedTexture.dispose();
+  }
+
+  private createGroupFooter(): GUI.Control {
+    const footer = new GUI.Rectangle();
+    footer.width = '100%';
+    footer.height = '30px';
+    footer.background = this.options.backgroundColor!;
+    footer.alpha = 0.7;
+    
+    const buttonContainer = new GUI.StackPanel();
+    buttonContainer.width = '100%';
+    buttonContainer.height = '25px';
+    buttonContainer.isVertical = false;
+    
+    // Add buttons here
+    // ...
+    
+    footer.addControl(buttonContainer);
+    return footer;
   }
 } 

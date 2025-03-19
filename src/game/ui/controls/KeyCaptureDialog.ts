@@ -21,6 +21,7 @@ export class KeyCaptureDialog {
     private keyDownHandler: (e: KeyboardEvent) => void;
     private mouseDownHandler: (e: MouseEvent) => void;
     private active: boolean = false;
+    private handleCancelClick: () => void;
     
     /**
      * Creates a new key capture dialog
@@ -52,7 +53,8 @@ export class KeyCaptureDialog {
         // Create cancel button
         this.cancelButton = document.createElement('button');
         this.cancelButton.textContent = 'Cancel';
-        this.cancelButton.addEventListener('click', () => this.hide());
+        this.handleCancelClick = () => this.hide();
+        this.cancelButton.addEventListener('click', this.handleCancelClick);
         this.dialog.appendChild(this.cancelButton);
         
         // Add dialog to overlay
@@ -219,8 +221,8 @@ export class KeyCaptureDialog {
             this.hide();
         }
         
-        // Remove event listeners
-        this.cancelButton.removeEventListener('click', () => this.hide());
+        // Remove event listeners - use proper reference to the event handler instead of an inline function
+        this.cancelButton.removeEventListener('click', this.handleCancelClick);
         
         // Remove from DOM
         if (this.container.parentNode) {

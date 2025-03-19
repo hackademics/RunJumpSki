@@ -85,4 +85,36 @@ export class ServiceLocator {
   public clear(): void {
     this.services.clear();
   }
+
+  /**
+   * Static helper methods
+   */
+
+  /**
+   * Register a service with its interface type as the key
+   * @param type Interface type to use as the key
+   * @param service Service instance to register
+   */
+  public static register<T>(type: new (...args: any[]) => T, service: T): void {
+    ServiceLocator.getInstance().register(type.name, service);
+  }
+
+  /**
+   * Resolve a service by its interface type
+   * @param type Interface type to resolve
+   * @returns The service instance
+   * @throws Error if the service is not found
+   */
+  public static resolve<T>(type: new (...args: any[]) => T): T {
+    return ServiceLocator.getInstance().get<T>(type.name);
+  }
+
+  /**
+   * Reset the service locator (for testing)
+   */
+  public static reset(): void {
+    if (ServiceLocator.instance) {
+      ServiceLocator.instance.clear();
+    }
+  }
 }

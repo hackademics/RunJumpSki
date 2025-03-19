@@ -129,6 +129,8 @@ export class InputManager {
   private pointerLocked: boolean;
   private keyboardMap: Map<string, boolean>;
   private gamepad: BABYLON.Gamepad | null;
+  private handleCanvasClick: (event: MouseEvent) => void = () => {};
+  private handlePointerLockChange: () => void = () => {};
   
   /**
    * Creates a new input manager
@@ -221,8 +223,8 @@ export class InputManager {
     
     // Set up pointer lock if enabled
     if (this.config.usePointerLock) {
-      // Request pointer lock when canvas is clicked
-      this.canvas.addEventListener('click', () => {
+      // Create handler and store reference
+      this.handleCanvasClick = () => {
         this.canvas.requestPointerLock = this.canvas.requestPointerLock ||
           (this.canvas as any).mozRequestPointerLock ||
           (this.canvas as any).webkitRequestPointerLock;
@@ -230,10 +232,13 @@ export class InputManager {
         if (this.canvas.requestPointerLock) {
           this.canvas.requestPointerLock();
         }
-      });
+      };
       
-      // Handle pointer lock change
-      const pointerLockChange = () => {
+      // Request pointer lock when canvas is clicked
+      this.canvas.addEventListener('click', this.handleCanvasClick);
+      
+      // Create handler and store reference
+      this.handlePointerLockChange = () => {
         this.pointerLocked = (
           document.pointerLockElement === this.canvas ||
           (document as any).mozPointerLockElement === this.canvas ||
@@ -242,9 +247,9 @@ export class InputManager {
       };
       
       // Listen for pointer lock change events
-      document.addEventListener('pointerlockchange', pointerLockChange, false);
-      document.addEventListener('mozpointerlockchange', pointerLockChange, false);
-      document.addEventListener('webkitpointerlockchange', pointerLockChange, false);
+      document.addEventListener('pointerlockchange', this.handlePointerLockChange, false);
+      document.addEventListener('mozpointerlockchange', this.handlePointerLockChange, false);
+      document.addEventListener('webkitpointerlockchange', this.handlePointerLockChange, false);
     }
     
     // Set up gamepad support if enabled
@@ -393,9 +398,15 @@ export class InputManager {
   public dispose(): void {
     // Clean up event listeners and resources
     if (this.config.usePointerLock) {
-      document.removeEventListener('pointerlockchange', () => {});
-      document.removeEventListener('mozpointerlockchange', () => {});
-      document.removeEventListener('webkitpointerlockchange', () => {});
+      // Store a reference to the handler when adding it
+      if (this.canvas) {
+        this.canvas.removeEventListener('click', this.handleCanvasClick);
+      }
+      
+      // Remove pointer lock change listeners with proper references
+      document.removeEventListener('pointerlockchange', this.handlePointerLockChange);
+      document.removeEventListener('mozpointerlockchange', this.handlePointerLockChange);
+      document.removeEventListener('webkitpointerlockchange', this.handlePointerLockChange);
     }
   }
 }

@@ -16,6 +16,12 @@ export class PhysicsSystem implements IPhysicsSystem {
   private physicsEngine: any | null = null;
   private impostors: Map<string, BABYLON.PhysicsImpostor> = new Map();
   private joints: BABYLON.PhysicsJoint[] = [];
+  private defaultFriction: number = 0.2;
+  private defaultRestitution: number = 0.2;
+  private timeScale: number = 1.0;
+  private enabled: boolean = true;
+  private deterministic: boolean = false;
+  private showWireframes: boolean = false;
 
   /**
    * Initializes the physics system with the given scene.
@@ -200,5 +206,166 @@ export class PhysicsSystem implements IPhysicsSystem {
     this.physicsEngine = null;
     this.scene = null;
     this.physicsPlugin = null;
+  }
+
+  /**
+   * Gets the current gravity vector
+   * @returns Current gravity vector
+   */
+  public getGravity(): BABYLON.Vector3 {
+    return this.gravity.clone();
+  }
+
+  /**
+   * Gets the default friction value
+   * @returns Default friction value
+   */
+  public getDefaultFriction(): number {
+    return this.defaultFriction;
+  }
+
+  /**
+   * Sets the default friction value
+   * @param friction New default friction value
+   */
+  public setDefaultFriction(friction: number): void {
+    this.defaultFriction = friction;
+    
+    // Update all existing impostors
+    this.impostors.forEach((impostor) => {
+      const params = impostor.getParam("friction");
+      if (params !== undefined) {
+        impostor.setParam("friction", friction);
+      }
+    });
+  }
+
+  /**
+   * Gets the default restitution (bounciness) value
+   * @returns Default restitution value
+   */
+  public getDefaultRestitution(): number {
+    return this.defaultRestitution;
+  }
+
+  /**
+   * Sets the default restitution (bounciness) value
+   * @param restitution New default restitution value
+   */
+  public setDefaultRestitution(restitution: number): void {
+    this.defaultRestitution = restitution;
+    
+    // Update all existing impostors
+    this.impostors.forEach((impostor) => {
+      const params = impostor.getParam("restitution");
+      if (params !== undefined) {
+        impostor.setParam("restitution", restitution);
+      }
+    });
+  }
+
+  /**
+   * Gets the current time scale for physics
+   * @returns Current time scale
+   */
+  public getTimeScale(): number {
+    return this.timeScale;
+  }
+
+  /**
+   * Sets the time scale for physics simulation
+   * @param scale New time scale
+   */
+  public setTimeScale(scale: number): void {
+    this.timeScale = scale;
+    
+    // Apply time scale to the physics engine if available
+    if (this.physicsEngine) {
+      // This depends on how the specific physics engine handles time scaling
+      if (this.physicsEngine.setTimeStep) {
+        // Adjust the time step based on the scale
+        const baseTimeStep = 1/60; // Default time step
+        this.physicsEngine.setTimeStep(baseTimeStep * scale);
+      }
+    }
+  }
+
+  /**
+   * Checks if physics is enabled
+   * @returns Whether physics is enabled
+   */
+  public isEnabled(): boolean {
+    return this.enabled;
+  }
+
+  /**
+   * Enables physics simulation
+   */
+  public enable(): void {
+    this.enabled = true;
+    
+    if (this.physicsEngine) {
+      this.physicsEngine.setEnabled(true);
+    }
+  }
+
+  /**
+   * Disables physics simulation
+   */
+  public disable(): void {
+    this.enabled = false;
+    
+    if (this.physicsEngine) {
+      this.physicsEngine.setEnabled(false);
+    }
+  }
+
+  /**
+   * Checks if deterministic mode is enabled
+   * @returns Whether deterministic mode is enabled
+   */
+  public isDeterministic(): boolean {
+    return this.deterministic;
+  }
+
+  /**
+   * Sets deterministic mode
+   * @param value Whether to enable deterministic mode
+   */
+  public setDeterministic(value: boolean): void {
+    this.deterministic = value;
+    
+    if (this.physicsEngine) {
+      // This depends on the specific physics engine implementation
+      if (this.physicsEngine.setDeterministic) {
+        this.physicsEngine.setDeterministic(value);
+      }
+    }
+  }
+
+  /**
+   * Shows or hides collision wireframes
+   * @param show Whether to show wireframes
+   */
+  public showCollisionWireframes(show: boolean): void {
+    this.showWireframes = show;
+    
+    if (this.scene && this.physicsEngine) {
+      // Enable debug mode in the physics engine
+      if (show) {
+        this.scene.debugLayer.show({
+          embedMode: true
+        });
+      } else {
+        this.scene.debugLayer.hide();
+      }
+      
+      // Set wireframe mode for impostors
+      this.impostors.forEach((impostor) => {
+        if (impostor.object instanceof BABYLON.AbstractMesh) {
+          (impostor.object as BABYLON.AbstractMesh).showBoundingBox = show;
+        }
+      });
+    }
   }
 }

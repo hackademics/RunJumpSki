@@ -272,7 +272,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
    * @param id ID of the particle system
    * @returns The particle system or null if not found
    */
-  public getParticleSystem(id: string): BABYLON.ParticleSystem | null {
+  public getParticleSystem(id: string): BABYLON.IParticleSystem | null {
     return this.particleSystems.get(id) || null;
   }
   
@@ -281,11 +281,11 @@ export class ParticleSystemManager implements IParticleSystemManager {
    * @param type Type of particle systems to get
    * @returns Array of particle systems matching the type
    */
-  public getParticleSystemsByType(type: ParticleEffectType): BABYLON.ParticleSystem[] {
+  public getParticleSystemsByType(type: ParticleEffectType): BABYLON.IParticleSystem[] {
     const systems: BABYLON.ParticleSystem[] = [];
     
-    this.particleTypes.forEach((effectType, id) => {
-      if (effectType === type) {
+    this.particleTypes.forEach((particleType, id) => {
+      if (particleType === type) {
         const system = this.particleSystems.get(id);
         if (system) {
           systems.push(system);
@@ -691,17 +691,128 @@ export class ParticleSystemManager implements IParticleSystemManager {
    * Dispose of all particle effects
    */
   public disposeAll(): void {
-    try {
-      // Dispose all particle systems
-      this.particleSystems.forEach((system, id) => {
-        this.disposeEffect(id);
-      });
-      
-      // Clear maps
-      this.particleSystems.clear();
-      this.particleTypes.clear();
-    } catch (error) {
-      console.error('ParticleSystemManager: Error disposing all effects', error);
+    // Dispose all particle systems
+    this.particleSystems.forEach(system => {
+      system.dispose();
+    });
+    
+    // Clear maps
+    this.particleSystems.clear();
+    this.particleTypes.clear();
+  }
+
+  /**
+   * Dispose of the ParticleSystemManager and all managed particle systems
+   */
+  public dispose(): void {
+    this.disposeAll();
+    this.scene = null;
+  }
+
+  /**
+   * Create a particle system from a predefined preset with customizations
+   * @param options Options for creating the particle system from preset
+   * @returns ID of the created particle system
+   */
+  public createParticleSystemFromPreset(options: any): string | null {
+    if (!this.scene) {
+      console.error('ParticleSystemManager: Scene not initialized');
+      return null;
     }
+
+    try {
+      // Implementation would go here
+      console.warn('ParticleSystemFromPreset not fully implemented');
+      return null;
+    } catch (error) {
+      console.error('Error creating particle system from preset:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update the emitter position of a particle system
+   * @param id ID of the particle system
+   * @param position New position for the emitter
+   * @returns Whether the update was successful
+   */
+  public updateEmitterPosition(id: string, position: BABYLON.Vector3): boolean {
+    const system = this.particleSystems.get(id);
+    if (!system) {
+      return false;
+    }
+
+    try {
+      if (system.emitter instanceof BABYLON.Vector3) {
+        (system.emitter as BABYLON.Vector3).copyFrom(position);
+        return true;
+      } else if (system.emitter instanceof BABYLON.AbstractMesh) {
+        (system.emitter as BABYLON.AbstractMesh).position.copyFrom(position);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error(`ParticleSystemManager: Error updating emitter position for ${id}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Update the emit rate of a particle system
+   * @param id ID of the particle system
+   * @param emitRate New emit rate (particles per second)
+   * @returns Whether the update was successful
+   */
+  public updateEmitRate(id: string, emitRate: number): boolean {
+    const system = this.particleSystems.get(id);
+    if (!system) {
+      return false;
+    }
+
+    try {
+      system.emitRate = emitRate;
+      return true;
+    } catch (error) {
+      console.error(`ParticleSystemManager: Error updating emit rate for ${id}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Set visibility of a particle system
+   * @param id ID of the particle system
+   * @param visible Whether the particle system should be visible
+   * @returns Whether the visibility change was successful
+   */
+  public setSystemVisible(id: string, visible: boolean): boolean {
+    const system = this.particleSystems.get(id);
+    if (!system) {
+      return false;
+    }
+
+    try {
+      if (visible) {
+        if (!system.isStarted()) {
+          system.start();
+        }
+      } else {
+        if (system.isStarted()) {
+          system.stop();
+        }
+      }
+      return true;
+    } catch (error) {
+      console.error(`ParticleSystemManager: Error setting visibility for ${id}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Remove a particle system
+   * @param id ID of the particle system to remove
+   * @returns Whether the removal was successful
+   */
+  public removeParticleSystem(id: string): boolean {
+    return this.disposeEffect(id);
   }
 } 

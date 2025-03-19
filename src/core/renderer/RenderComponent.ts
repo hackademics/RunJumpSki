@@ -1,72 +1,125 @@
 /**
- * @file src/core/ecs/components/RenderComponent.ts
+ * @file src/core/renderer/RenderComponent.ts
  * @description RenderComponent implements IRenderComponent to enable entities to be rendered.
- * It maintains a reference to a Babylon.js mesh, controls its visibility, and provides per-frame update,
- * along with standard component lifecycle methods.
+ * It maintains a reference to a Babylon.js mesh, controls its visibility, and provides an update method.
  * 
  * @dependencies IRenderComponent, babylonjs, IComponent
  * @relatedFiles IRenderComponent.ts
  */
 import * as BABYLON from 'babylonjs';
 import { IRenderComponent } from './IRenderComponent';
-import { IComponent } from '@core/ecs/IComponent';
+import { IComponent } from '../ecs/IComponent';
+import { IEntity } from '../ecs/IEntity';
 
-export class RenderComponent implements IRenderComponent, IComponent {
+/**
+ * Component that enables entities to be rendered
+ */
+export class RenderComponent implements IRenderComponent {
+  /**
+   * The type identifier for this component
+   */
+  public readonly type: string = 'render';
+  
+  /**
+   * The mesh associated with this component
+   */
   public mesh: BABYLON.AbstractMesh | null;
+  
+  /**
+   * Whether the component is visible
+   */
   public isVisible: boolean;
-  public type: string;
-  public isEnabled: boolean;
-
+  
+  /**
+   * The entity this component is attached to
+   */
+  private entity: IEntity | null = null;
+  
+  /**
+   * Whether the component is enabled
+   */
+  private enabled: boolean = true;
+  
+  /**
+   * Creates a new render component
+   */
   constructor() {
     this.mesh = null;
     this.isVisible = true;
-    this.type = "RenderComponent";
-    this.isEnabled = true;
   }
-
+  
   /**
-   * Initializes the render component.
+   * Initializes the component with an entity
+   * @param entity The entity to attach to
    */
-  public init(): void {
-    console.log("RenderComponent initialized.");
+  public init(entity: IEntity): void {
+    this.entity = entity;
   }
-
+  
   /**
-   * Disposes of the render component.
+   * Updates the component
+   * @param deltaTime Time elapsed since last update
+   */
+  public update(deltaTime: number): void {
+    if (!this.enabled || !this.mesh) {
+      return;
+    }
+    
+    // Update mesh visibility
+    this.mesh.isVisible = this.isVisible;
+    
+    // Additional update logic can be added here
+  }
+  
+  /**
+   * Disposes of the component and its resources
    */
   public dispose(): void {
-    console.log("RenderComponent disposed.");
+    // Clean up resources
+    this.mesh = null;
+    this.entity = null;
   }
-
+  
   /**
-   * Enables or disables the component.
-   * @param enabled - true to enable, false to disable.
+   * Checks if the component is enabled
+   * @returns Whether the component is enabled
+   */
+  public isEnabled(): boolean {
+    return this.enabled;
+  }
+  
+  /**
+   * Sets whether the component is enabled
+   * @param enabled Whether to enable the component
    */
   public setEnabled(enabled: boolean): void {
-    this.isEnabled = enabled;
-    // Optionally synchronize visibility:
-    this.isVisible = enabled;
+    this.enabled = enabled;
+    
+    // Update mesh visibility if enabled state changes
     if (this.mesh) {
-      this.mesh.isVisible = this.isVisible;
+      this.mesh.setEnabled(enabled);
     }
   }
-
+  
   /**
-   * Attaches a Babylon.js mesh to the component and syncs its visibility.
-   * @param mesh - The Babylon.js mesh.
+   * Attaches a Babylon.js mesh to this render component
+   * @param mesh The mesh to attach
    */
   public setMesh(mesh: BABYLON.AbstractMesh): void {
     this.mesh = mesh;
-    this.mesh.isVisible = this.isVisible;
-  }
-
-  /**
-   * Updates the render component (typically called each frame).
-   */
-  public update(): void {
+    
+    // Sync mesh state with component state
     if (this.mesh) {
       this.mesh.isVisible = this.isVisible;
-      // Add additional per-frame update logic here.
+      this.mesh.setEnabled(this.enabled);
     }
+  }
+  
+  /**
+   * Gets the entity this component is attached to
+   * @returns The entity or null if not attached
+   */
+  public getEntity(): IEntity | null {
+    return this.entity;
   }
 }

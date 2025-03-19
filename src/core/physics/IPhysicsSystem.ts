@@ -25,6 +25,12 @@ export interface IPhysicsSystem {
   setGravity(gravity: BABYLON.Vector3): void;
 
   /**
+   * Gets the current gravity vector.
+   * @returns The current gravity vector.
+   */
+  getGravity(): BABYLON.Vector3;
+
+  /**
    * Destroys the physics system and cleans up resources.
    */
   destroy(): void;
@@ -34,6 +40,76 @@ export interface IPhysicsSystem {
    * @returns The Babylon.js physics engine or null if not initialized.
    */
   getPhysicsEngine(): any | null;
+
+  /**
+   * Gets the default friction value.
+   * @returns The default friction value.
+   */
+  getDefaultFriction(): number;
+
+  /**
+   * Sets the default friction value.
+   * @param friction - The new default friction value.
+   */
+  setDefaultFriction(friction: number): void;
+
+  /**
+   * Gets the default restitution (bounciness) value.
+   * @returns The default restitution value.
+   */
+  getDefaultRestitution(): number;
+
+  /**
+   * Sets the default restitution (bounciness) value.
+   * @param restitution - The new default restitution value.
+   */
+  setDefaultRestitution(restitution: number): void;
+
+  /**
+   * Gets the current time scale for physics.
+   * @returns The current time scale.
+   */
+  getTimeScale(): number;
+
+  /**
+   * Sets the time scale for physics simulation.
+   * @param scale - The new time scale.
+   */
+  setTimeScale(scale: number): void;
+
+  /**
+   * Checks if physics is enabled.
+   * @returns Whether physics is enabled.
+   */
+  isEnabled(): boolean;
+
+  /**
+   * Enables physics simulation.
+   */
+  enable(): void;
+
+  /**
+   * Disables physics simulation.
+   */
+  disable(): void;
+
+  /**
+   * Checks if deterministic mode is enabled.
+   * @returns Whether deterministic mode is enabled.
+   */
+  isDeterministic(): boolean;
+
+  /**
+   * Sets deterministic mode.
+   * @param value - Whether to enable deterministic mode.
+   */
+  setDeterministic(value: boolean): void;
+
+  /**
+   * Shows or hides collision wireframes.
+   * @param show - Whether to show wireframes.
+   */
+  showCollisionWireframes(show: boolean): void;
   
   /**
    * Creates a physics impostor for a mesh.
