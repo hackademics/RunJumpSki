@@ -18,7 +18,8 @@ export enum PostProcessEffectType {
   CHROMATIC_ABERRATION = 'chromaticAberration',
   FILM_GRAIN = 'filmGrain',
   VIGNETTE = 'vignette',
-  ANTI_ALIASING = 'antiAliasing'
+  ANTI_ALIASING = 'antiAliasing',
+  AMBIENT_OCCLUSION = 'ambientOcclusion'
 }
 
 /**
@@ -95,15 +96,33 @@ export interface ColorCorrectionEffectOptions extends PostProcessEffectOptions {
 }
 
 /**
+ * Options for ambient occlusion effect
+ */
+export interface AmbientOcclusionEffectOptions extends PostProcessEffectOptions {
+  /** Ambient occlusion radius */
+  radius?: number;
+  /** Ambient occlusion strength */
+  strength?: number;
+  /** Ambient occlusion sample count */
+  samples?: number;
+  /** Whether to use blurred occlusion */
+  useBlur?: boolean;
+}
+
+/**
  * Interface for post-processing manager
  */
 export interface IPostProcessingManager {
   /**
    * Initialize the post-processing manager
    * @param scene The scene to attach post-processing to
-   * @param camera The camera to attach post-processing to
    */
-  initialize(scene: BABYLON.Scene, camera: BABYLON.Camera): void;
+  initialize(scene: BABYLON.Scene): void;
+  
+  /**
+   * Create the default post-processing pipeline
+   */
+  createDefaultPipeline(): void;
   
   /**
    * Add a post-processing effect
@@ -186,4 +205,53 @@ export interface IPostProcessingManager {
    * Dispose all post-processing effects and resources
    */
   dispose(): void;
+  
+  /**
+   * Enable or disable bloom effect
+   * @param enabled Whether bloom should be enabled
+   * @returns True if operation was successful
+   */
+  enableBloom(enabled: boolean): boolean;
+  
+  /**
+   * Enable or disable depth of field effect
+   * @param enabled Whether depth of field should be enabled
+   * @returns True if operation was successful
+   */
+  enableDepthOfField(enabled: boolean): boolean;
+  
+  /**
+   * Enable or disable ambient occlusion effect
+   * @param enabled Whether ambient occlusion should be enabled
+   * @returns True if operation was successful
+   */
+  enableAmbientOcclusion(enabled: boolean): boolean;
+  
+  /**
+   * Set bloom intensity
+   * @param intensity Bloom intensity value
+   * @returns True if operation was successful
+   */
+  setBloomIntensity(intensity: number): boolean;
+  
+  /**
+   * Set depth of field focal length
+   * @param focalLength Focal length in millimeters
+   * @returns True if operation was successful
+   */
+  setDepthOfFieldFocalLength(focalLength: number): boolean;
+  
+  /**
+   * Set ambient occlusion radius
+   * @param radius Radius value for ambient occlusion
+   * @returns True if operation was successful
+   */
+  setAmbientOcclusionRadius(radius: number): boolean;
+  
+  /**
+   * Enable or disable the entire post-processing pipeline
+   * @param enabled Whether the pipeline should be enabled
+   * @returns True if operation was successful
+   */
+  setPipelineEnabled(enabled: boolean): boolean;
 } 

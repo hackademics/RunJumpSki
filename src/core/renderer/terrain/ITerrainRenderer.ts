@@ -6,6 +6,7 @@
  * @relatedFiles TerrainRenderer.ts, LODTerrainSystem.ts, TerrainMaterialSystem.ts
  */
 import * as BABYLON from 'babylonjs';
+import { TerrainQuality } from './TerrainRenderer';
 
 /**
  * Interface for terrain rendering system
@@ -63,4 +64,69 @@ export interface ITerrainRenderer {
    * Release all resources
    */
   dispose(): void;
+  
+  /**
+   * Set the terrain rendering quality
+   * @param quality The quality level to set
+   */
+  setQuality(quality: TerrainQuality): void;
+  
+  /**
+   * Set the view distance for terrain rendering
+   * @param distance View distance in world units
+   */
+  setViewDistance(distance: number): void;
+  
+  /**
+   * Get the default view distance for terrain rendering
+   * @returns Default view distance in world units
+   */
+  getDefaultViewDistance(): number;
+  
+  /**
+   * Set whether to render terrain in wireframe mode
+   * @param enabled Whether wireframe mode should be enabled
+   */
+  setWireframe(enabled: boolean): void;
+  
+  /**
+   * Check if wireframe mode is enabled
+   * @returns Whether wireframe mode is currently enabled
+   */
+  isWireframe(): boolean;
+  
+  /**
+   * Get the height at the specified x, z coordinates
+   * @param x X coordinate in world space
+   * @param z Z coordinate in world space
+   * @returns Height at the specified coordinates
+   */
+  getHeightAt(x: number, z: number): number;
+  
+  /**
+   * Get the surface normal at the specified x, z coordinates
+   * @param x X coordinate in world space
+   * @param z Z coordinate in world space
+   * @returns Normal vector at the specified coordinates
+   */
+  getNormalAt(x: number, z: number): BABYLON.Vector3;
+  
+  /**
+   * Get the slope at the specified x, z coordinates
+   * @param x X coordinate in world space
+   * @param z Z coordinate in world space
+   * @returns Slope in radians at the specified coordinates
+   */
+  getSlopeAt(x: number, z: number): number;
+  
+  /**
+   * Create the terrain geometry and materials
+   */
+  createTerrain(): void;
+  
+  /**
+   * Update the terrain rendering
+   * @param deltaTime Time since last update in seconds
+   */
+  update(deltaTime: number): void;
 } 
