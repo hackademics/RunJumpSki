@@ -223,20 +223,24 @@ export class SkiTrailParticleEffect implements ISkiTrailParticleEffect {
         this.scene = scene;
         this.targetEntity = targetEntity;
         
-        // Get required components
-        this.transformComponent = targetEntity.getComponent<ITransformComponent>('transform');
-        if (!this.transformComponent) {
-            throw new ComponentError('skiTrailParticleEffect', targetEntity.id, 'Entity must have a transform component');
+        // Get the transform component
+        this.transformComponent = targetEntity.getComponent<ITransformComponent>('transform') || null;
+        
+        // Create the particle system manager
+        this.particleSystemManager = new ParticleSystemManager();
+        
+        // Initialize it with the scene
+        if (scene) {
+            this.particleSystemManager.initialize(scene);
+        
+            // Store initial position if we have a transform component
+            if (this.transformComponent) {
+                this.lastPosition = this.transformComponent.getPosition().clone();
+            }
+            
+            // Create particle systems for each surface type
+            this.createParticleSystems();
         }
-        
-        // Create particle system manager
-        this.particleSystemManager = new ParticleSystemManager(scene);
-        
-        // Create particle systems for each surface type
-        this.createParticleSystems();
-        
-        // Store initial position
-        this.lastPosition = this.transformComponent.getPosition().clone();
         
         // Initial state - not emitting
         this.setEmitting(false);
@@ -293,7 +297,7 @@ export class SkiTrailParticleEffect implements ISkiTrailParticleEffect {
         // Create a unique name for this system
         const systemName = `ski-trail-${surfaceType}-${Date.now()}`;
         
-        // Create the particle system
+        // Create a new system
         const particleSystem = new BABYLON.ParticleSystem(systemName, this.options.maxParticles, this.scene);
         
         // Configure base properties
@@ -343,11 +347,13 @@ export class SkiTrailParticleEffect implements ISkiTrailParticleEffect {
             particleSystem.particleTexture = new BABYLON.Texture(defaultTexture, this.scene);
         }
         
-        // Initialize but don't start emitting
-        particleSystem.start();
-        particleSystem.isEmitting = false;
+        // Start or stop based on should emit
+        particleSystem.start(); // Start the system
+        if (!this.isEmitting) {
+            particleSystem.stop(); // Then stop it if needed
+        }
         
-        // Register with particle system manager
+        // Register with manager
         return this.particleSystemManager.registerExternalParticleSystem(systemName, particleSystem);
     }
     

@@ -237,7 +237,7 @@ export class DebugPresetManager {
   public listPresets(): PresetMetadata[] {
     const presets: PresetMetadata[] = [];
     
-    this.storageAdapter.listKeys().forEach(key => {
+    this.storageAdapter.listKeys('').forEach(key => {
       const presetJson = this.storageAdapter.loadItem(key);
       if (presetJson) {
         try {
@@ -272,7 +272,7 @@ export class DebugPresetManager {
   public exportAllPresets(): string {
     const allPresets: { [key: string]: Preset } = {};
     
-    this.storageAdapter.listKeys().forEach(key => {
+    this.storageAdapter.listKeys('').forEach(key => {
       const presetJson = this.storageAdapter.loadItem(key);
       if (presetJson) {
         try {

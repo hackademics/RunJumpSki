@@ -3,21 +3,20 @@ import { IEvent, IEventDispatcher, EventHandler, SubscriptionId } from './IEvent
 import { EventDispatcher } from './EventDispatcher';
 import { ILogger } from '../utils/ILogger';
 import { ServiceLocator } from '../base/ServiceLocator';
+import { Logger } from '../utils/Logger';
 
 /**
  * System that manages events and event dispatching
  */
 export class EventSystem extends System implements IEventDispatcher {
-  private dispatcher: EventDispatcher;
-  private logger?: ILogger;
+  private dispatcher: EventDispatcher = new EventDispatcher();
+  private logger?: Logger;
   
   /**
    * Create a new EventSystem
    */
   constructor() {
-    super();
-    // Set a low priority so event system initializes early
-    this.priority = -900;  // Just after logging system
+    super({ priority: -900 });  // Set a low priority so event system initializes early
   }
 
   /**
@@ -26,16 +25,28 @@ export class EventSystem extends System implements IEventDispatcher {
   public async initialize(): Promise<void> {
     // Get the logger if available
     try {
-      this.logger = ServiceLocator.resolve<ILogger>(ILogger);
-      this.logger.addTag('EventSystem');
+      // Try to get the logger from ServiceLocator
+      const loggerInstance = ServiceLocator.getInstance();
+      const loggerSystem = loggerInstance.get<Logger>('logger');
+      
+      if (loggerSystem) {
+        this.logger = loggerSystem;
+        // Logger.addTag is specific to our implementation and not in the interface
+        if (typeof this.logger.addTag === 'function') {
+          this.logger.addTag('EventSystem');
+        }
+      }
     } catch (e) {
       // Logger not registered, continue without it
       console.info('EventSystem initialized (no logger available)');
     }
     
+    // Create dispatcher with logger
     this.dispatcher = new EventDispatcher(this.logger);
     
-    this.logger?.info('EventSystem initialized');
+    if (this.logger) {
+      this.logger.info('EventSystem initialized');
+    }
   }
   
 

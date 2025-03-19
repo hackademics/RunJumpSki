@@ -13,16 +13,15 @@ export class LoggingSystem extends System implements ILogger {
    * @param initialLevel The initial log level
    */
   constructor(initialLevel: LogLevel = LogLevel.INFO) {
-    super();
-    // Set a low priority so logging system initializes first
-    this.priority = -1000;
+    // Pass priority as an option object instead of setting it after construction
+    super({ priority: -1000 });
     this.logger = new Logger('LogSystem', initialLevel);
   }
 
   /**
    * Initialize the logging system
    */
-  public initialize(): void {
+  public async initialize(): Promise<void> {
     this.info('LoggingSystem initialized');
   }
 
@@ -42,6 +41,14 @@ export class LoggingSystem extends System implements ILogger {
   }
 
   /**
+   * Clean up resources used by the system
+   */
+  public async dispose(): Promise<void> {
+    this.info('LoggingSystem disposing');
+    // No special cleanup needed for logger
+  }
+
+  /**
    * Set the minimum log level that will be output
    * @param level The minimum level to output
    */
@@ -50,55 +57,65 @@ export class LoggingSystem extends System implements ILogger {
   }
   
   /**
-   * Get the current log level
+   * Get the current minimum log level
+   * @returns The current minimum log level
    */
   public getLevel(): LogLevel {
     return this.logger.getLevel();
   }
-
+  
   /**
-   * Log a debug message
-   * @param message The message to log
-   * @param optionalParams Additional parameters to include
+   * Log a message at the TRACE level
+   * @param message Message to log
+   * @param args Additional arguments
    */
-  public debug(message: string, ...optionalParams: any[]): void {
-    this.logger.debug(message, ...optionalParams);
+  public trace(message: string, ...args: any[]): void {
+    this.logger.trace(message, ...args);
   }
-
+  
   /**
-   * Log an info message
-   * @param message The message to log
-   * @param optionalParams Additional parameters to include
+   * Log a message at the DEBUG level
+   * @param message Message to log
+   * @param args Additional arguments
    */
-  public info(message: string, ...optionalParams: any[]): void {
-    this.logger.info(message, ...optionalParams);
+  public debug(message: string, ...args: any[]): void {
+    this.logger.debug(message, ...args);
   }
-
+  
   /**
-   * Log a warning message
-   * @param message The message to log
-   * @param optionalParams Additional parameters to include
+   * Log a message at the INFO level
+   * @param message Message to log
+   * @param args Additional arguments
    */
-  public warn(message: string, ...optionalParams: any[]): void {
-    this.logger.warn(message, ...optionalParams);
+  public info(message: string, ...args: any[]): void {
+    this.logger.info(message, ...args);
   }
-
+  
   /**
-   * Log an error message
-   * @param message The message to log
-   * @param optionalParams Additional parameters to include
+   * Log a message at the WARN level
+   * @param message Message to log
+   * @param args Additional arguments
    */
-  public error(message: string, ...optionalParams: any[]): void {
-    this.logger.error(message, ...optionalParams);
+  public warn(message: string, ...args: any[]): void {
+    this.logger.warn(message, ...args);
   }
-
+  
   /**
-   * Log a fatal error message
-   * @param message The message to log
-   * @param optionalParams Additional parameters to include
+   * Log a message at the ERROR level
+   * @param message Message to log
+   * @param args Additional arguments
    */
-  public fatal(message: string, ...optionalParams: any[]): void {
-    this.logger.fatal(message, ...optionalParams);
+  public error(message: string, ...args: any[]): void {
+    this.logger.error(message, ...args);
+  }
+  
+  /**
+   * Log a message at the FATAL level
+   * @param message Message to log
+   * @param args Additional arguments
+   */
+  public fatal(message: string, ...args: any[]): void {
+    this.logger.fatal(message, ...args);
   }
 
   /**

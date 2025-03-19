@@ -1,20 +1,20 @@
 /**
  * @file src/game/renderer/SpeedEffectsController.ts
- * @description Controller for dynamic visual effects based on player movement speed
+ * @description Manages visual effects based on player speed
+ * 
+ * @dependencies babylonjs, IEntity, ITransformComponent, IPostProcessingManager, PostProcessingManager
+ * @relatedFiles PostProcessingManager.ts, IPostProcessingManager.ts
  */
 
 import * as BABYLON from 'babylonjs';
 
 // Core engine imports
 import { PostProcessingManager } from '../../core/renderer/effects/PostProcessingManager';
-import { IPostProcessingManager } from '../../core/renderer/effects/IPostProcessingManager';
+import { IPostProcessingManager, PostProcessEffectType } from '../../core/renderer/effects/IPostProcessingManager';
 
 // Component imports
 import { IEntity } from '../../core/ecs/IEntity';
 import { ITransformComponent } from '../../core/ecs/components/ITransformComponent';
-
-// Type definitions
-import { ComponentError } from '../../types/errors/ComponentError';
 
 /**
  * Configuration options for speed-based effects
@@ -131,20 +131,29 @@ export class SpeedEffectsController implements ISpeedEffectsController {
         this.scene = scene;
         this.targetEntity = targetEntity;
         
-        // Get required components
-        this.transformComponent = targetEntity.getComponent<ITransformComponent>('transform');
-        if (!this.transformComponent) {
-            throw new ComponentError('speedEffectsController', targetEntity.id, 'Entity must have a transform component');
-        }
+        // Get transform component
+        this.transformComponent = targetEntity.getComponent<ITransformComponent>('transform') || null;
         
         // Create post-processing manager
-        this.postProcessingManager = new PostProcessingManager(scene);
+        this.postProcessingManager = new PostProcessingManager();
         
-        // Store initial position
-        this.lastPosition = this.transformComponent.getPosition().clone();
-        
-        // Setup post-processing effects
-        this.setupEffects();
+        // Initialize it with the scene
+        if (scene) {
+            const camera = this.options.camera || scene.activeCamera;
+            if (camera) {
+                this.postProcessingManager.initialize(scene, camera);
+                
+                // Store initial position if we have a transform component
+                if (this.transformComponent) {
+                    this.lastPosition = this.transformComponent.getPosition().clone();
+                }
+                
+                // Setup post-processing effects
+                this.setupEffects();
+            } else {
+                console.error("SpeedEffectsController: No camera available for effects");
+            }
+        }
     }
     
     /**
@@ -162,32 +171,29 @@ export class SpeedEffectsController implements ISpeedEffectsController {
         }
         
         // Create motion blur effect with minimum intensity
-        this.motionBlurEffect = this.postProcessingManager.addMotionBlurEffect({
-            camera,
+        this.postProcessingManager.configureMotionBlur({
             intensity: 0,
-            samplingMode: BABYLON.Texture.BILINEAR_SAMPLINGMODE,
-            isEnabled: this.enabled
+            enabled: this.enabled
         });
+        this.motionBlurEffect = PostProcessEffectType.MOTION_BLUR;
         
         // Create depth of field effect with minimum intensity
-        this.depthOfFieldEffect = this.postProcessingManager.addDepthOfFieldEffect({
-            camera,
+        this.postProcessingManager.configureDepthOfField({
             focalLength: 150,
             fStop: 1.4,
             focusDistance: 2000,
-            focalDepth: 10,
-            maxBlurLevel: 0, // Start with no blur
-            isEnabled: this.enabled
+            enabled: this.enabled
         });
+        this.depthOfFieldEffect = PostProcessEffectType.DEPTH_OF_FIELD;
         
         // Create color correction effect
-        this.colorCorrectionEffect = this.postProcessingManager.addColorCorrectionEffect({
-            camera,
+        this.postProcessingManager.configureColorCorrection({
             saturation: 1.0,
             contrast: 1.0,
             exposure: 1.0,
-            isEnabled: this.enabled
+            enabled: this.enabled
         });
+        this.colorCorrectionEffect = PostProcessEffectType.COLOR_CORRECTION;
     }
     
     /**
@@ -225,93 +231,90 @@ export class SpeedEffectsController implements ISpeedEffectsController {
      * Update motion blur effect based on current speed
      */
     private updateMotionBlur(): void {
-        if (!this.postProcessingManager || !this.motionBlurEffect) {
+        if (!this.postProcessingManager || this.motionBlurEffect === null) {
             return;
         }
         
         // Calculate motion blur intensity based on speed
-        let motionBlurIntensity = 0;
+        let blurIntensity = 0;
         
-        if (this.currentSpeed > this.options.minSpeedForMotionBlur) {
+        if (this.smoothedSpeed > this.options.minSpeedForMotionBlur) {
+            // Map speed to intensity (0.0 - 1.0)
             const speedFactor = Math.min(
-                (this.currentSpeed - this.options.minSpeedForMotionBlur) / 
+                (this.smoothedSpeed - this.options.minSpeedForMotionBlur) / 
                 (this.options.maxSpeedForMotionBlur - this.options.minSpeedForMotionBlur),
                 1.0
             );
             
-            motionBlurIntensity = speedFactor * this.options.maxMotionBlurStrength * this.intensityScale;
+            // Apply intensity scale and max strength
+            blurIntensity = speedFactor * this.options.maxMotionBlurStrength * this.intensityScale;
         }
         
-        // Update motion blur effect
-        this.postProcessingManager.updateMotionBlurEffect(
-            this.motionBlurEffect,
-            { intensity: motionBlurIntensity }
-        );
+        // Update the motion blur effect
+        this.postProcessingManager.configureMotionBlur({
+            intensity: blurIntensity
+        });
     }
     
     /**
      * Update depth of field effect based on current speed
      */
     private updateDepthOfField(): void {
-        if (!this.postProcessingManager || !this.depthOfFieldEffect) {
+        if (!this.postProcessingManager || this.depthOfFieldEffect === null) {
             return;
         }
         
         // Calculate depth of field intensity based on speed
-        let maxBlurLevel = 0;
+        let dofStrength = 0;
         
-        if (this.currentSpeed > this.options.minSpeedForDepthOfField) {
+        if (this.smoothedSpeed > this.options.minSpeedForDepthOfField) {
+            // Map speed to intensity (0.0 - 1.0)
             const speedFactor = Math.min(
-                (this.currentSpeed - this.options.minSpeedForDepthOfField) / 
+                (this.smoothedSpeed - this.options.minSpeedForDepthOfField) / 
                 (this.options.maxSpeedForDepthOfField - this.options.minSpeedForDepthOfField),
                 1.0
             );
             
-            // Scale from 0-5 for maxBlurLevel (Babylon.js DOF parameter)
-            maxBlurLevel = Math.floor(speedFactor * 5 * this.options.maxDepthOfFieldStrength * this.intensityScale);
+            // Apply intensity scale and max strength
+            dofStrength = speedFactor * this.options.maxDepthOfFieldStrength * this.intensityScale;
         }
         
-        // Update depth of field effect
-        this.postProcessingManager.updateDepthOfFieldEffect(
-            this.depthOfFieldEffect,
-            { maxBlurLevel }
-        );
+        // Update the depth of field effect
+        this.postProcessingManager.configureDepthOfField({
+            focusDistance: 2000 - dofStrength * 1500, // Reduce focus distance with speed
+            fStop: Math.max(1.4 - dofStrength, 0.5)  // Lower f-stop (more blur) with speed
+        });
     }
     
     /**
      * Update color correction effect based on current speed
      */
     private updateColorCorrection(): void {
-        if (!this.postProcessingManager || !this.colorCorrectionEffect) {
+        if (!this.postProcessingManager || this.colorCorrectionEffect === null) {
             return;
         }
         
-        // Default values
-        let saturation = 1.0;
-        let contrast = 1.0;
-        let exposure = 1.0;
+        // Calculate color shift intensity based on speed
+        let colorShiftIntensity = 0;
         
-        if (this.currentSpeed > this.options.minSpeedForColorGrading) {
+        if (this.smoothedSpeed > this.options.minSpeedForColorGrading) {
+            // Map speed to intensity (0.0 - 1.0)
             const speedFactor = Math.min(
-                (this.currentSpeed - this.options.minSpeedForColorGrading) / 
+                (this.smoothedSpeed - this.options.minSpeedForColorGrading) / 
                 (this.options.maxSpeedForColorGrading - this.options.minSpeedForColorGrading),
                 1.0
             );
             
-            // Scale effect by speed factor
-            const effectIntensity = speedFactor * this.options.maxColorShiftAmount * this.intensityScale;
-            
-            // Increase saturation and contrast with speed
-            saturation = 1.0 + effectIntensity;
-            contrast = 1.0 + effectIntensity * 0.5;
-            exposure = 1.0 + effectIntensity * 0.2;
+            // Apply intensity scale and max shift amount
+            colorShiftIntensity = speedFactor * this.options.maxColorShiftAmount * this.intensityScale;
         }
         
-        // Update color correction effect
-        this.postProcessingManager.updateColorCorrectionEffect(
-            this.colorCorrectionEffect,
-            { saturation, contrast, exposure }
-        );
+        // Update the color correction effect
+        this.postProcessingManager.configureColorCorrection({
+            saturation: 1.0 + colorShiftIntensity * 0.2,  // Increase saturation with speed
+            contrast: 1.0 + colorShiftIntensity * 0.3,    // Increase contrast with speed
+            exposure: 1.0 + colorShiftIntensity * 0.1     // Slight exposure boost with speed
+        });
     }
     
     /**
@@ -319,19 +322,36 @@ export class SpeedEffectsController implements ISpeedEffectsController {
      * @param enabled Whether effects should be enabled
      */
     public setEnabled(enabled: boolean): void {
+        if (this.enabled === enabled) {
+            return;
+        }
+        
         this.enabled = enabled;
         
+        // Update all effects
         if (this.postProcessingManager) {
-            if (this.motionBlurEffect) {
-                this.postProcessingManager.setEffectEnabled(this.motionBlurEffect, enabled);
+            if (this.motionBlurEffect !== null) {
+                if (enabled) {
+                    this.postProcessingManager.enableEffect(PostProcessEffectType.MOTION_BLUR);
+                } else {
+                    this.postProcessingManager.disableEffect(PostProcessEffectType.MOTION_BLUR);
+                }
             }
             
-            if (this.depthOfFieldEffect) {
-                this.postProcessingManager.setEffectEnabled(this.depthOfFieldEffect, enabled);
+            if (this.depthOfFieldEffect !== null) {
+                if (enabled) {
+                    this.postProcessingManager.enableEffect(PostProcessEffectType.DEPTH_OF_FIELD);
+                } else {
+                    this.postProcessingManager.disableEffect(PostProcessEffectType.DEPTH_OF_FIELD);
+                }
             }
             
-            if (this.colorCorrectionEffect) {
-                this.postProcessingManager.setEffectEnabled(this.colorCorrectionEffect, enabled);
+            if (this.colorCorrectionEffect !== null) {
+                if (enabled) {
+                    this.postProcessingManager.enableEffect(PostProcessEffectType.COLOR_CORRECTION);
+                } else {
+                    this.postProcessingManager.disableEffect(PostProcessEffectType.COLOR_CORRECTION);
+                }
             }
         }
     }
@@ -354,27 +374,25 @@ export class SpeedEffectsController implements ISpeedEffectsController {
      */
     public dispose(): void {
         if (this.postProcessingManager) {
-            if (this.motionBlurEffect) {
-                this.postProcessingManager.removeEffect(this.motionBlurEffect);
-                this.motionBlurEffect = null;
+            if (this.motionBlurEffect !== null) {
+                this.postProcessingManager.removeEffect(PostProcessEffectType.MOTION_BLUR);
             }
             
-            if (this.depthOfFieldEffect) {
-                this.postProcessingManager.removeEffect(this.depthOfFieldEffect);
-                this.depthOfFieldEffect = null;
+            if (this.depthOfFieldEffect !== null) {
+                this.postProcessingManager.removeEffect(PostProcessEffectType.DEPTH_OF_FIELD);
             }
             
-            if (this.colorCorrectionEffect) {
-                this.postProcessingManager.removeEffect(this.colorCorrectionEffect);
-                this.colorCorrectionEffect = null;
+            if (this.colorCorrectionEffect !== null) {
+                this.postProcessingManager.removeEffect(PostProcessEffectType.COLOR_CORRECTION);
             }
             
+            // Dispose the post-processing manager
             this.postProcessingManager.dispose();
             this.postProcessingManager = null;
         }
         
-        this.scene = null;
         this.targetEntity = null;
         this.transformComponent = null;
+        this.scene = null;
     }
 } 

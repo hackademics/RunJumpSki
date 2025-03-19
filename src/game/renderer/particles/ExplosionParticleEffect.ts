@@ -189,9 +189,12 @@ export class ExplosionParticleEffect implements IExplosionParticleEffect {
     public createCustomExplosion(scene: BABYLON.Scene, options: ExplosionParticleOptions): void {
         this.scene = scene;
         
-        // Create particle system manager if it doesn't exist
-        if (!this.particleSystemManager) {
-            this.particleSystemManager = new ParticleSystemManager(scene);
+        // Create particle system manager
+        this.particleSystemManager = new ParticleSystemManager();
+        
+        // Initialize it with the scene
+        if (scene) {
+            this.particleSystemManager.initialize(scene);
         }
         
         // Create unique ID for this explosion

@@ -230,8 +230,12 @@ export class ColorCorrectionEffect {
     }
     
     // Disable any active vignette
-    if (this.pipeline.vignetteEnabled) {
-      this.pipeline.vignetteEnabled = false;
+    // Check if vignette effect exists in the pipeline
+    if (this.pipeline.imageProcessing && this.pipeline.imageProcessingEnabled) {
+      // Modern BabylonJS uses imageProcessing for vignette control
+      if (this.pipeline.imageProcessing.vignetteEnabled) {
+        this.pipeline.imageProcessing.vignetteEnabled = false;
+      }
     }
     
     // Clear any custom color grading
@@ -259,14 +263,14 @@ export class ColorCorrectionEffect {
       colorCurves.globalDensity = 0.8;    // Reduce overall color density
       colorCurves.globalSaturation = 0.5; // Reduce saturation
       
-      // Adjust RGB channels for sepia tone
-      colorCurves.highlightsR = 1.3;      // More red in highlights
-      colorCurves.highlightsG = 1.1;      // More green in highlights
-      colorCurves.highlightsB = 0.9;      // Less blue in highlights
+      // Adjust RGB channels for sepia tone - using proper API
+      // Instead of individual R,G,B highlight properties, use the vector methods
+      colorCurves.highlightsHue = 0.1;
+      colorCurves.highlightsDensity = 1.2;
       
-      colorCurves.shadowsR = 0.9;         // Less red in shadows
-      colorCurves.shadowsG = 0.8;         // Less green in shadows
-      colorCurves.shadowsB = 0.7;         // Even less blue in shadows
+      // Instead of individual R,G,B shadow properties, use the vector methods
+      colorCurves.shadowsHue = 0.1;
+      colorCurves.shadowsDensity = 0.8;
     }
   }
   
@@ -297,15 +301,16 @@ export class ColorCorrectionEffect {
   private applyVignetteEffect(): void {
     // Keep existing color settings, just add vignette
     
-    // Enable vignette
-    this.pipeline.vignetteEnabled = true;
-    
-    // Set vignette values
-    if (this.pipeline.vignette) {
-      this.pipeline.vignette.vignetteWeight = 1.0;   // Strength of the vignette
-      this.pipeline.vignette.vignetteStretch = 0.5;  // Size of the vignette
-      this.pipeline.vignette.vignetteColor = new BABYLON.Color4(0, 0, 0, 0);  // Black vignette
-      this.pipeline.vignette.vignetteBlendMode = BABYLON.VignetteBlendMode.Multiply;
+    // Enable vignette using the correct API
+    if (this.pipeline.imageProcessing) {
+      // Modern BabylonJS uses imageProcessing for vignette control
+      this.pipeline.imageProcessing.vignetteEnabled = true;
+      
+      // Configure vignette parameters
+      this.pipeline.imageProcessing.vignetteWeight = 1.0;   // Strength
+      this.pipeline.imageProcessing.vignetteStretch = 0.5;  // Size
+      this.pipeline.imageProcessing.vignetteColor = new BABYLON.Color4(0, 0, 0, 0);  // Black
+      this.pipeline.imageProcessing.vignetteBlendMode = BABYLON.ImageProcessingConfiguration.VIGNETTEMODE_MULTIPLY;
     }
   }
   
@@ -568,7 +573,7 @@ export class ColorCorrectionEffect {
         this.pipeline.imageProcessing.colorCurves.reset();
       }
       
-      this.pipeline.vignetteEnabled = false;
+      this.pipeline.imageProcessing.vignetteEnabled = false;
     }
   }
 } 

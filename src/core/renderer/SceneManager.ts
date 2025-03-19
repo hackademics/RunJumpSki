@@ -9,18 +9,19 @@ import * as BABYLON from 'babylonjs';
 import {
   ISceneManager,
   SceneCreationOptions,
+  SceneCreateOptions,
   SceneTransitionOptions,
   SceneTransitionType,
 } from './ISceneManager';
+import { SceneType, SceneFactory } from './SceneFactory';
 import { SceneTransitionManager } from './SceneTransitionManager';
-import { SceneFactory, SceneType } from './SceneFactory';
 
 export class SceneManager implements ISceneManager {
   private engine: BABYLON.Engine | null = null;
   private activeScene: BABYLON.Scene | null = null;
   private scenes: Map<string, BABYLON.Scene> = new Map();
-  private transitionManager: SceneTransitionManager | null = null;
   private sceneFactory: SceneFactory | null = null;
+  private transitionManager: SceneTransitionManager | null = null;
 
   /**
    * Initializes the SceneManager with a Babylon.js engine.
@@ -28,8 +29,8 @@ export class SceneManager implements ISceneManager {
    */
   public initialize(engine: BABYLON.Engine): void {
     this.engine = engine;
-    this.transitionManager = new SceneTransitionManager(engine);
     this.sceneFactory = new SceneFactory(engine);
+    this.transitionManager = new SceneTransitionManager(engine);
 
     // Create a default scene
     this.activeScene = this.createScene({
@@ -55,38 +56,47 @@ export class SceneManager implements ISceneManager {
    * @param options Scene creation options
    * @returns The newly created scene.
    */
-  public createScene(options: SceneCreationOptions = {}): BABYLON.Scene {
+  public createScene(options: SceneCreateOptions): BABYLON.Scene {
     if (!this.engine) {
       throw new Error('Engine not initialized for SceneManager.');
     }
 
     // Use scene factory if possible, otherwise create basic scene
     let scene: BABYLON.Scene;
-    if (this.sceneFactory && options.name) {
+    
+    // Map SceneCreateOptions to the internal SceneCreationOptionsAlias format
+    const internalOptions: SceneCreationOptions = {
+      name: options.id,
+      setAsActive: options.makeActive,
+      // Map any other properties if needed
+      ...(options.sceneOptions || {})
+    };
+    
+    if (this.sceneFactory && internalOptions.name) {
       // Determine scene type from name if possible
       const sceneTypeMap: Record<string, SceneType> = {
-        mainMenu: SceneType.MAIN_MENU,
-        gameLevel: SceneType.GAME_LEVEL,
+        mainMenu: SceneType.MENU,
+        gameLevel: SceneType.GAME,
         loading: SceneType.LOADING,
-        pauseMenu: SceneType.PAUSE_MENU,
-        controls: SceneType.CONTROLS,
-        gameOver: SceneType.GAME_OVER,
-        levelSelect: SceneType.LEVEL_SELECT,
+        pauseMenu: SceneType.MENU,
+        controls: SceneType.MENU,
+        gameOver: SceneType.MENU,
+        levelSelect: SceneType.MENU,
       };
 
-      const sceneType = sceneTypeMap[options.name] || SceneType.GAME_LEVEL;
-      scene = this.sceneFactory.createScene(sceneType, options);
+      const sceneType = sceneTypeMap[internalOptions.name] || SceneType.GAME;
+      scene = this.sceneFactory.createScene(internalOptions.name, { type: sceneType });
     } else {
       scene = new BABYLON.Scene(this.engine);
     }
 
     // Register in our scene map with a name
-    const sceneName = options.name || `scene_${Date.now()}`;
+    const sceneName = internalOptions.name || `scene_${Date.now()}`;
     scene.metadata = { ...scene.metadata, name: sceneName };
     this.scenes.set(sceneName, scene);
 
     // Set as active if requested
-    if (options.setAsActive) {
+    if (internalOptions.setAsActive) {
       this.activeScene = scene;
 
       // Run render loop for this scene
@@ -95,14 +105,15 @@ export class SceneManager implements ISceneManager {
       });
     }
 
-    // Execute setup callback if provided
-    if (options.setupCallback) {
-      options.setupCallback(scene);
+    // Call any provided setup callback
+    if (internalOptions.setupCallback) {
+      internalOptions.setupCallback(scene);
     }
 
-    // Enable physics if requested
-    if (options.enablePhysics) {
-      scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), new BABYLON.CannonJSPlugin());
+    // Setup physics if requested
+    if (internalOptions.enablePhysics) {
+      const gravityVector = new BABYLON.Vector3(0, -9.81, 0);
+      scene.enablePhysics(gravityVector, new BABYLON.CannonJSPlugin());
     }
 
     return scene;

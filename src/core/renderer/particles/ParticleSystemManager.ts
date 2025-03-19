@@ -702,6 +702,45 @@ export class ParticleSystemManager implements IParticleSystemManager {
   }
 
   /**
+   * Register an external particle system with the manager
+   * @param name Name for the particle system
+   * @param particleSystem The particle system to register
+   * @returns ID of the registered particle system
+   */
+  public registerExternalParticleSystem(name: string, particleSystem: BABYLON.ParticleSystem): string {
+    // Generate a unique ID
+    const id = `${name}_${this.nextId++}`;
+    
+    // Store the particle system with its ID
+    this.particleSystems.set(id, particleSystem);
+    this.particleTypes.set(id, ParticleEffectType.CUSTOM);
+    
+    return id;
+  }
+  
+  /**
+   * Set whether a particle system is emitting
+   * @param id ID of the particle system
+   * @param emitting Whether the system should emit particles
+   * @returns Whether the operation was successful
+   */
+  public setEmitting(id: string, emitting: boolean): boolean {
+    const particleSystem = this.particleSystems.get(id);
+    if (!particleSystem) {
+      console.warn(`ParticleSystemManager: Cannot set emitting state for unknown system ${id}`);
+      return false;
+    }
+    
+    if (emitting) {
+      particleSystem.start();
+    } else {
+      particleSystem.stop();
+    }
+    
+    return true;
+  }
+
+  /**
    * Dispose of the ParticleSystemManager and all managed particle systems
    */
   public dispose(): void {

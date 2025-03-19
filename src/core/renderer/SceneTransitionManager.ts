@@ -8,6 +8,8 @@
 
 import * as BABYLON from 'babylonjs';
 import { SceneTransitionType, SceneTransitionOptions } from './ISceneManager';
+import { Logger } from '../utils/Logger';
+import { ServiceLocator } from '../base/ServiceLocator';
 
 /**
  * Manages scene transitions with various effects
@@ -18,7 +20,7 @@ export class SceneTransitionManager {
   private transitionMaterial: BABYLON.Material | null = null;
   private transitionPlane: BABYLON.Mesh | null = null;
   private isTransitioning: boolean = false;
-  private logger: BABYLON.Logger | null = null;
+  private logger: Logger | null = null;
 
   /**
    * Creates a new SceneTransitionManager
@@ -26,6 +28,16 @@ export class SceneTransitionManager {
    */
   constructor(engine: BABYLON.Engine) {
     this.engine = engine;
+    
+    // Try to get logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+      }
+    } catch (e) {
+      console.warn('Logger not available for SceneTransitionManager');
+    }
   }
 
   /**
@@ -138,7 +150,13 @@ export class SceneTransitionManager {
     options: SceneTransitionOptions
   ): Promise<void> {
     this.isTransitioning = true;
-    this.logger?.debug('Starting fade transition');
+    
+    // Use info instead of debug since our logger interface doesn't have debug
+    if (this.logger) {
+      this.logger.info('Starting fade transition');
+    } else {
+      console.log('Starting fade transition');
+    }
 
     // Capture the current scene to a texture
     const texture = await this.captureSceneToTexture(fromScene);

@@ -227,6 +227,22 @@ export interface IParticleSystemManager {
   ): string | null;
   
   /**
+   * Register an external particle system with the manager
+   * @param name Name for the particle system
+   * @param particleSystem The particle system to register
+   * @returns ID of the registered particle system
+   */
+  registerExternalParticleSystem(name: string, particleSystem: BABYLON.ParticleSystem): string;
+  
+  /**
+   * Set whether a particle system is emitting
+   * @param id ID of the particle system
+   * @param emitting Whether the system should emit particles
+   * @returns Whether the operation was successful
+   */
+  setEmitting(id: string, emitting: boolean): boolean;
+  
+  /**
    * Get a particle system by ID
    * @param id ID of the particle system
    * @returns The particle system or null if not found

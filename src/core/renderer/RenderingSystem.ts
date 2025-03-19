@@ -49,9 +49,19 @@ export class RenderingSystem implements IRenderingSystem {
     if (!scene) {
       throw new Error('No active scene available to render.');
     }
+    
+    // Track time for delta calculation
+    let lastFrameTime = performance.now();
+    
     this.engine.runRenderLoop(() => {
       try {
-        this.cameraManager.update();
+        // Calculate delta time in seconds
+        const currentTime = performance.now();
+        const deltaTime = (currentTime - lastFrameTime) / 1000;
+        lastFrameTime = currentTime;
+        
+        // Update camera with delta time
+        this.cameraManager.update(deltaTime);
         scene.render();
       } catch (error) {
         console.error('Error during render loop:', error);

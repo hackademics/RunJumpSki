@@ -176,14 +176,16 @@ export class JetpackParticleEffect implements IJetpackParticleEffect {
         this.scene = scene;
         this.targetEntity = targetEntity;
         
-        // Get required components
-        this.transformComponent = targetEntity.getComponent<ITransformComponent>('transform');
-        if (!this.transformComponent) {
-            throw new ComponentError('jetpackParticleEffect', targetEntity.id, 'Entity must have a transform component');
-        }
+        // Get the transform component
+        this.transformComponent = targetEntity.getComponent<ITransformComponent>('transform') || null;
         
-        // Create particle system manager
-        this.particleSystemManager = new ParticleSystemManager(scene);
+        // Create the particle system manager
+        this.particleSystemManager = new ParticleSystemManager();
+        
+        // Initialize it with the scene
+        if (scene) {
+            this.particleSystemManager.initialize(scene);
+        }
         
         // Create particle systems
         this.createParticleSystems();
