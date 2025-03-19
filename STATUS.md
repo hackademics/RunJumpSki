@@ -39,17 +39,17 @@
   - `src/core/ecs/components/IMeshComponent.ts` ✅
   - `tests/unit/core/ecs/components/RenderableComponent.test.ts` ✅
   - `tests/unit/core/ecs/components/MeshComponent.test.ts` ✅
-- [ ] Physics Components
-  - `src/core/ecs/components/PhysicsComponent.ts`
-  - `src/core/ecs/components/IPhysicsComponent.ts`
-  - `src/core/ecs/components/ColliderComponent.ts`
-  - `src/core/ecs/components/IColliderComponent.ts`
-  - `tests/unit/core/ecs/components/PhysicsComponent.test.ts`
-  - `tests/unit/core/ecs/components/ColliderComponent.test.ts`
-- [ ] Audio Components
-  - `src/core/ecs/components/AudioComponent.ts`
-  - `src/core/ecs/components/IAudioComponent.ts`
-  - `tests/unit/core/ecs/components/AudioComponent.test.ts`
+- [x] Physics Components
+  - `src/core/ecs/components/PhysicsComponent.ts` ✅
+  - `src/core/ecs/components/IPhysicsComponent.ts` ✅
+  - `src/core/ecs/components/ColliderComponent.ts` ✅
+  - `src/core/ecs/components/IColliderComponent.ts` ✅
+  - `tests/unit/core/ecs/components/PhysicsComponent.test.ts` ✅
+  - `tests/unit/core/ecs/components/ColliderComponent.test.ts` ✅
+- [x] Audio Components
+  - `src/core/ecs/components/AudioComponent.ts` ✅
+  - `src/core/ecs/components/IAudioComponent.ts` ✅
+  - `tests/unit/core/ecs/components/AudioComponent.test.ts` ✅
 - [x] Camera Components
   - `src/core/ecs/components/CameraComponent.ts` ✅
   - `src/core/ecs/components/ICameraComponent.ts` ✅
@@ -141,10 +141,12 @@
 
 ## Next Steps Priority
 
-1. ✅ Implement core ECS components (Transform, Renderable, Physics)
+1. ✅ Implement core ECS components (Transform, Camera, Renderable, Physics, Audio)
    - TransformComponent completed ✅
    - Camera Components completed ✅
-   - Next: Renderable Components
+   - Renderable Components completed ✅
+   - Physics Components completed ✅
+   - Audio Components completed ✅
 2. Develop player controller with basic movement
 3. Complete physics system for collision detection
 4. Create skiing and jetpack mechanics

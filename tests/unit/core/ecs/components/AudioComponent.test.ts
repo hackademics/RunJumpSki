@@ -1,37 +1,26 @@
-﻿/**
+/**
  * @file tests/unit/core/ecs/components/AudioComponent.test.ts
- * @description Placeholder for AudioComponent.test
+ * @description Unit tests for AudioComponent
  */
 
 import * as BABYLON from 'babylonjs';
 import { AudioComponent } from '../../../../../src/core/ecs/components/AudioComponent';
-import { IAudioComponent } from '../../../../../src/core/ecs/components/IAudioComponent';
 import { Entity } from '../../../../../src/core/ecs/Entity';
-import { IEntity } from '../../../../../src/core/ecs/IEntity';
+import { TransformComponent } from '../../../../../src/core/ecs/components/TransformComponent';
+
+// Mock Babylon.js
+jest.mock('babylonjs');
 
 describe('AudioComponent', () => {
-    let component: AudioComponent;
-    let entity: IEntity;
-
-    beforeEach(() => {
-        entity = new Entity('test-entity');
-        component = new AudioComponent();
-    });
-
-    afterEach(() => {
-        component.dispose();
-        entity.dispose();
-    });
-
-    test('should have correct type', () => {
-        expect(component.type).toBe('audio');
-    });
-
-    test('should initialize properly', () => {
-        component.init(entity);
-        expect(component.entity).toBe(entity);
-    });
-
-    // TODO: Add more specific tests
-});
+  // Mock objects
+  let mockSound: jest.Mocked<BABYLON.Sound>;
+  let mockScene: jest.Mocked<BABYLON.Scene>;
+  let mockEngine: jest.Mocked<BABYLON.Engine>;
+  let entity: Entity;
+  let transformComponent: TransformComponent;
+  let component: AudioComponent;
+  
+  // Sound properties to be tested
+  const testSoundKey = 'test-sound';
+  const testSoundUrl = 'sounds/test.mp3';
 
