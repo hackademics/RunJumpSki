@@ -542,32 +542,50 @@ Next steps for code quality:
 - [x] Optimized collision detection with spatial partitioning
 
 ## Next Steps for Performance Optimizations
-1. [ ] Integrate pooled projectile physics into the weapons system
-2. [ ] Integrate pooled particle system manager with effects system
-3. [ ] Implement adaptive graphics quality based on performance metrics
-4. [ ] Create benchmarks for common gameplay scenarios
-5. [ ] Optimize terrain rendering with LOD system
+1. [✅] Integrate pooled projectile physics into the weapons system
+   - [✅] Created `src/game/weapons/WeaponSystem.ts` with pooled projectile physics integration
+   - [✅] Integrated with existing `SpinfusorProjectile` and `GrenadeProjectile` classes
+   - [✅] Added performance monitoring for projectile creation and updates
+2. [✅] Integrate pooled particle system manager with effects system
+   - [✅] Created `src/game/renderer/ParticleEffectsSystem.ts` for centralized particle effect management
+   - [✅] Integrated with jetpack, explosion, and ski trail effects
+   - [✅] Implemented adaptive quality based on performance metrics
+3. [✅] Implement adaptive graphics quality based on performance metrics
+   - [✅] Added FPS monitoring and history tracking
+   - [✅] Implemented dynamic quality adjustment for particle effects
+   - [✅] Added performance monitoring for real-time metrics
+4. [✅] Create benchmarks for common gameplay scenarios
+   - [✅] Created `src/examples/PerformanceBenchmark.ts` with gameplay scenarios
+   - [✅] Implemented weapon firing benchmarks
+   - [✅] Implemented player movement effects benchmarks
+   - [✅] Added interactive UI for running benchmarks
+5. [✅] Optimize terrain rendering with LOD system
+   - [✅] Existing `src/core/renderer/terrain/LODTerrainSystem.ts` already implements this
 
 ## Performance Demo
-A performance optimization demo is available at `src/examples/PerformanceDemo.ts`. This demo showcases all three performance optimization systems working together:
+The performance benchmarks and demos are available in the following files:
 
-1. **Pooled Projectile Physics**: Demonstrates efficient handling of multiple projectiles with object pooling
-2. **Pooled Particle System Manager**: Shows reuse of particle effects for explosions and trails
-3. **Adaptive Rendering System**: Automatically adjusts quality settings based on performance
+1. **Performance Benchmark**: `src/examples/PerformanceBenchmark.ts` 
+   - Tests weapon firing performance with pooled projectiles
+   - Tests particle effects performance with pooled particle systems
+   - Tests combined jetpack and ski trail effects
 
-Additionally, a spatial partitioning collision detection demo is available at `src/examples/OptimizedCollisionDemo.ts`, which demonstrates:
-1. **Spatial Partitioning**: Shows how spatial partitioning reduces collision checks
-2. **Performance Comparison**: Toggles between brute force and spatial partitioning approaches
-3. **Visualization**: Provides visual feedback of the spatial grid and potential collision pairs
-4. **Real-time Statistics**: Displays metrics about collision detection performance
+2. **Optimized Collision Demo**: `src/examples/OptimizedCollisionDemo.ts`
+   - Demonstrates spatial partitioning for efficient collision detection
+   - Shows performance improvements from optimized algorithms
 
-The demo allows users to:
-- Spawn projectiles manually or enable stress testing
-- See real-time performance metrics
-- Manually adjust quality settings or use adaptive quality
-- Monitor object pool statistics
+The integrated systems are available for use in the game:
 
-To run the demo, include the `PerformanceDemo.ts` file in your build and ensure there's a canvas with ID "renderCanvas" in your HTML.
+1. **Weapon System**: `src/game/weapons/WeaponSystem.ts`
+   - Uses pooled projectile physics for better performance
+   - Manages both Spinfusor and Grenade projectiles
+
+2. **Particle Effects System**: `src/game/renderer/ParticleEffectsSystem.ts`
+   - Uses pooled particle systems for better performance
+   - Implements adaptive quality based on FPS
+   - Manages jetpack, explosion, and ski trail effects
+
+These optimizations significantly improve performance in scenarios with many projectiles and particle effects, ensuring smoother gameplay even on less powerful hardware.
 
 ### Documentation Status
 - [ ] Review JSDoc coverage
