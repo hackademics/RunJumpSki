@@ -174,12 +174,67 @@
   - [x] Create `tests/unit/core/renderer/particles/ParticleSystemManager.test.ts` - Test particle system ✅
 
 #### Debug Tools
-- [ ] Create in-game performance monitoring display
-- [ ] Implement debug GUI for game parameter tweaking
-- [ ] Add visual debugging aids for physics/collision
-- [ ] Create real-time stats collection during gameplay
+- [x] Create in-game performance monitoring display
+  - [x] Update `src/core/debug/PerformanceMonitor.ts` - Enhance metrics tracking
+  - [x] Create `src/core/debug/metrics/PerformanceMetricsManager.ts` - Collect and organize metrics
+  - [x] Create `src/core/debug/metrics/IPerformanceMetricsManager.ts` - Define interface
+  - [x] Create `src/game/ui/debug/PerformanceDisplayComponent.ts` - Real-time overlay
+  - [x] Create `src/game/ui/debug/IPerformanceDisplayComponent.ts` - Interface for display
+  - [x] Create `tests/unit/core/debug/metrics/PerformanceMetricsManager.test.ts` - Test metrics collection
+  - [x] Update `src/core/debug/IDebugSystem.ts` to integrate performance display
+- [x] Implement debug GUI for game parameter tweaking
+  - [x] Update `src/core/debug/DebugGUI.ts` - Add expandable panels and categories
+  - [x] Create `src/core/debug/gui/TweakableParameter.ts` - Base class for parameters
+  - [x] Create `src/core/debug/gui/ParameterGroup.ts` - Container for parameters
+  - [x] Create `src/core/debug/gui/DebugPanelManager.ts` - Manages all panels
+  - [x] Create `src/core/debug/gui/presets/PhysicsDebugPanel.ts` - Physics parameters
+  - [x] Create `src/core/debug/gui/presets/RenderingDebugPanel.ts` - Rendering parameters
+  - [x] Create `src/core/debug/gui/presets/PlayerDebugPanel.ts` - Player parameters
+  - [x] Create `src/core/debug/serialization/DebugPresetManager.ts` - Save/load presets
+  - [x] Create `tests/unit/core/debug/gui/TweakableParameter.test.ts` - Test parameter system
+  - [x] Create `tests/unit/core/debug/gui/ParameterGroup.test.ts` - Test panel system
+- [x] Add visual debugging aids for physics/collision
+  - [x] Update `src/core/debug/DebugRenderer.ts` - Support for physics primitives
+  - [x] Create `src/core/debug/visual/CollisionVisualizer.ts` - Collision visualization
+  - [x] Create `src/core/debug/visual/PhysicsVisualizer.ts` - Forces and velocities
+  - [x] Create `src/core/debug/visual/TerrainVisualizer.ts` - Terrain properties
+  - [x] Create `src/core/debug/visual/PlayerPhysicsVisualizer.ts` - Player movement
+  - [x] Create `tests/unit/core/debug/visual/CollisionVisualizer.test.ts` - Test collision visualization
+  - [x] Create `tests/unit/core/debug/visual/PhysicsVisualizer.test.ts` - Test physics visualization
+  - [x] Create `tests/unit/core/debug/visual/TerrainVisualizer.test.ts` - Test terrain visualization
+  - [x] Create `tests/unit/core/debug/visual/PlayerPhysicsVisualizer.test.ts` - Test player physics visualization
+  - [x] Create `tests/unit/core/debug/DebugRenderer.test.ts` - Test core debug renderer
+
+## Debug Tools Implementation Strategy
+
+### Phase 1: Core Performance Monitoring and Stats Collection ✅
+- Implement base metrics tracking (FPS, memory, draw calls)
+- Create visualization overlay with graphs for performance trends
+- Integrate with existing engine systems
+
+### Phase 2: Debug GUI and Parameter Tweaking ✅
+- Implement tweakable parameter types (numbers, booleans, vectors)
+- Create panel system for organizing parameters by category
+- Add preset management for saving/loading configurations
+
+### Phase 3: Physics and Collision Visualization ✅
+- Implement visualization primitives for collision shapes and forces
+- Create specialized visualizers for terrain, player physics, and general collisions
+- Integrate with physics and collision systems
+- Create unit tests for visualization components
+
+### Phase 4: Final Integration and Polish ✅
+- Connect all debug systems together with a unified interface
+- Add keyboard shortcuts for quick access to debug features
+- Implement configuration persistence using local storage
 
 #### Testing Infrastructure
+- [✅] Create unit tests for debug visualization components
+  - [✅] `tests/unit/core/debug/visual/CollisionVisualizer.test.ts`
+  - [✅] `tests/unit/core/debug/visual/PhysicsVisualizer.test.ts`
+  - [✅] `tests/unit/core/debug/visual/TerrainVisualizer.test.ts`
+  - [✅] `tests/unit/core/debug/visual/PlayerPhysicsVisualizer.test.ts`
+  - [✅] `tests/unit/core/debug/DebugRenderer.test.ts`
 - [ ] Increase unit test coverage (currently minimal)
 - [ ] Create integration tests for core systems interaction
 - [ ] Implement automated performance testing
@@ -247,27 +302,43 @@
 
 ## Next Steps Priority
 
-1. ✅ Implement core ECS components (Transform, Camera, Renderable, Physics, Audio)
-   - TransformComponent completed ✅
-   - Camera Components completed ✅
-   - Renderable Components completed ✅
-   - Physics Components completed ✅
-   - Audio Components completed ✅
-2. Develop player controller with basic movement
-3. Complete physics system for collision detection
-   - Enhance Physics System with BabylonJS integration
-   - Implement Collision System
-   - Create Terrain Collision Handling
-   - Develop Projectile Physics
-4. Create skiing and jetpack mechanics
-   - Implement SkiingPhysics system
-   - Develop JetpackPhysics system
-   - Create MovementController integrating both systems
-5. Implement basic weapon systems
-6. Design first playable map
-7. Add targets and turrets
-8. Implement basic HUD elements
-9. Create start-to-finish gameplay loop
+1. ✅ Complete core debug GUI for parameter tweaking
+   - ✅ Implement tweakable parameter base classes
+   - ✅ Create parameter group system
+   - ✅ Implement debug panels for physics, rendering, and player systems
+   - ✅ Implement preset saving/loading system
+   - ✅ Create unit tests for debug GUI components
+
+2. [✅] Implement visual debugging aids for physics and collision
+   - [✅] Create debug renderer for physics primitives
+   - [✅] Implement collision visualization
+   - [✅] Add force and velocity visualization
+   - [✅] Create terrain property visualization
+   - [✅] Add player movement visualization
+
+3. [ ] Develop basic player controller with movement
+   - [ ] Implement character controller
+   - [ ] Add camera control
+   - [ ] Implement basic movement (walking, running)
+   - [ ] Create simple test environment
+
+4. [ ] Integrate skiing and jetpack mechanics
+   - [ ] Implement skiing physics on slopes
+   - [ ] Develop jetpack system with fuel management
+   - [ ] Create movement state transitions
+   - [ ] Add appropriate visual effects
+
+5. [ ] Implement basic weapon systems
+   - [ ] Create spinfusor weapon with projectile physics
+   - [ ] Add grenade system
+   - [ ] Implement weapon switching
+   - [ ] Add appropriate visual and audio effects
+
+6. [ ] Design first playable map
+   - [ ] Create terrain with slopes for skiing
+   - [ ] Add collision boundaries
+   - [ ] Place targets and obstacles
+   - [ ] Design start and finish areas
 
 ## Notes
 
@@ -358,8 +429,14 @@ Next steps for particle system:
 
 We've made significant progress addressing linter errors in the codebase:
 
+- Resolved ESLint errors in the `SceneTransitionManager.ts` file:
+  - Fixed unused variable warnings by removing `_fadeTo`, `fadeTo`, and `fadeOutAnim` variables
+  - Added missing methods and properties (`createTransitionScene`, `logger`)
+  - Fixed camera usage by replacing `setTarget` with proper position setting
+  - Resolved duplicate variable declarations
+
 - Resolved ESLint errors in the `SceneTransitionManager.test.ts` file:
-  - Fixed unused variable warnings by renaming `animationSpy` to `_animationSpy`
+  - Fixed unused variable warnings
   - Replaced `any` type assertions with more specific `Record<string, any>` type for accessing private properties
   - Ensured proper type definitions for test mocks
 
@@ -370,14 +447,15 @@ We've made significant progress addressing linter errors in the codebase:
 
 - Resolved formatting issues in `PostProcessingManager.test.ts`:
   - Fixed mocking of Babylon.js objects with proper types
-  - Added missing properties like `isEnabled` to mock objects
+
+- Fixed property issues in `DepthOfFieldEffect.ts`:
+  - Updated property names in the `DOF_PRESETS` object (replaced 'aperture' with 'fStop')
+  - Fixed formatting issues with ESLint `--fix` flag
 
 Remaining issues that need to be addressed in the future:
-- Several property mismatches between our code and the Babylon.js API in the DepthOfFieldEffect and ColorCorrectionEffect components
-- Inconsistencies in the ParticleSystemManager implementation with its interface
-- Type definition issues in various components that interact with Babylon.js
+- Type definition warnings about using `any` type across all files - these could be addressed with more specific types
+- Potential BabylonJS API inconsistencies in other files that we haven't yet examined
 
 Next steps for code quality:
-- Review the Babylon.js documentation to ensure our implementation matches the latest API
-- Update our interfaces to match the actual Babylon.js API capabilities
-- Address warnings about `any` type usage with more specific types
+- Continue addressing warnings about `any` type usage with more specific types
+- Apply ESLint fixes to remaining files in the codebase using the `--fix` flag

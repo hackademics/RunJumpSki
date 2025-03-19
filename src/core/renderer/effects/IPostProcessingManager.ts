@@ -61,14 +61,25 @@ export interface MotionBlurEffectOptions extends PostProcessEffectOptions {
  * Options for depth of field effect
  */
 export interface DepthOfFieldEffectOptions extends PostProcessEffectOptions {
-  /** Focal length */
+  /**
+   * Focus distance in scene units
+   */
+  focusDistance?: number;
+  
+  /**
+   * Focal length in millimeters
+   */
   focalLength?: number;
-  /** Focal distance */
-  focalDistance?: number;
-  /** Lens aperture (f-stop) */
-  aperture?: number;
-  /** Blur amount */
-  blurAmount?: number;
+  
+  /**
+   * F-stop (aperture) - lower values give more blur
+   */
+  fStop?: number;
+  
+  /**
+   * Lens size in scene units
+   */
+  lensSize?: number;
 }
 
 /**

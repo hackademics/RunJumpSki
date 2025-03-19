@@ -63,15 +63,15 @@ describe('PostProcessingManager', () => {
 
     // Set up BabylonJS constructor mocks
     (BABYLON.BloomEffect as any) = jest.fn().mockImplementation(() => mockBloomEffect);
-    (BABYLON.MotionBlurPostProcess as any) = jest.fn().mockImplementation(
-      () => mockMotionBlurPostProcess
-    );
-    (BABYLON.DepthOfFieldEffect as any) = jest.fn().mockImplementation(
-      () => mockDepthOfFieldEffect
-    );
-    (BABYLON.ColorCorrectionPostProcess as any) = jest.fn().mockImplementation(
-      () => mockColorCorrectionPostProcess
-    );
+    (BABYLON.MotionBlurPostProcess as any) = jest
+      .fn()
+      .mockImplementation(() => mockMotionBlurPostProcess);
+    (BABYLON.DepthOfFieldEffect as any) = jest
+      .fn()
+      .mockImplementation(() => mockDepthOfFieldEffect);
+    (BABYLON.ColorCorrectionPostProcess as any) = jest
+      .fn()
+      .mockImplementation(() => mockColorCorrectionPostProcess);
     (BABYLON.ChromaticAberrationPostProcess as any) = jest.fn().mockImplementation(() => ({
       dispose: jest.fn(),
       isEnabled: true,

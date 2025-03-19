@@ -18,6 +18,7 @@ export class SceneTransitionManager {
   private transitionMaterial: BABYLON.Material | null = null;
   private transitionPlane: BABYLON.Mesh | null = null;
   private isTransitioning: boolean = false;
+  private logger: BABYLON.Logger | null = null;
 
   /**
    * Creates a new SceneTransitionManager
@@ -115,6 +116,16 @@ export class SceneTransitionManager {
   }
 
   /**
+   * Creates a new transition scene
+   * @returns A new BABYLON scene for transitions
+   */
+  private createTransitionScene(): BABYLON.Scene {
+    const scene = new BABYLON.Scene(this.engine);
+    scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
+    return scene;
+  }
+
+  /**
    * Performs a fade transition between scenes
    * @param fromScene Source scene
    * @param toScene Target scene
@@ -134,8 +145,12 @@ export class SceneTransitionManager {
 
     // Create a transition scene with a camera and plane
     const transitionScene = this.createTransitionScene();
-    const camera = new BABYLON.Camera('transitionCamera', new BABYLON.Vector3(0, 0, -10), transitionScene);
-    camera.setTarget(BABYLON.Vector3.Zero());
+    const camera = new BABYLON.Camera(
+      'transitionCamera',
+      new BABYLON.Vector3(0, 0, -10),
+      transitionScene
+    );
+    camera.position = new BABYLON.Vector3(0, 0, -10);
 
     // Create a plane and apply the captured texture as a material
     const plane = BABYLON.MeshBuilder.CreatePlane(
@@ -169,14 +184,6 @@ export class SceneTransitionManager {
     keyFrames.push({ frame: frames, value: 0 });
     _fadeOutAnim.setKeys(keyFrames);
 
-    const _fadeTo = new BABYLON.Animation(
-      'fadeTo',
-      'material.alpha',
-      frames,
-      BABYLON.Animation.ANIMATIONTYPE_FLOAT,
-      BABYLON.Animation.ANIMATIONLOOPMODE_CONSTANT
-    );
-
     // Store references
     this.transitionPlane = plane;
     this.transitionMaterial = material;
@@ -188,13 +195,9 @@ export class SceneTransitionManager {
       transitionScene.render();
     });
 
-    // Create opacity animation
-    const duration = options.duration || 1000;
-
     return new Promise<void>(resolve => {
       // First half: fade out from current scene
-      const fadeTo = options.fadeToColor || new BABYLON.Color3(0, 0, 0);
-      const fadeOutAnim = BABYLON.Animation.CreateAndStartAnimation(
+      BABYLON.Animation.CreateAndStartAnimation(
         'fadeOut',
         material,
         'alpha',
