@@ -112,9 +112,27 @@
   - [x] Write tests: `tests/unit/core/physics/ProjectilePhysics.test.ts` and `tests/unit/game/weapons/SpinfusorProjectile.test.ts`
 
 #### Input System
-- [ ] Expand InputMapper with game-specific actions
-- [ ] Create configurable controls system
-- [ ] Implement action binding UI for players
+- [x] Expand InputMapper with game-specific actions
+  - [x] Create `src/game/input/GameInputActions.ts` - Define action constants for skiing, jetpack, weapons, etc.
+    - Include WASD movement, jump (tap spacebar), ski (hold spacebar), jetpack (hold RMB), Spinfusor (LMB), grenade (G)
+  - [x] Enhance `src/core/input/IInputMapper.ts` - Add methods for contextual action binding
+  - [x] Implement `src/game/input/GameInputMapper.ts` - Extend core InputMapper with game-specific action mapping
+  - [x] Create `src/game/input/InputEvents.ts` - Define custom events for game actions
+  - [x] Write tests: `tests/unit/game/input/GameInputMapper.test.ts`
+- [x] Create configurable controls system
+  - [x] Create `src/game/input/IControlsConfig.ts` - Define interfaces for all control configurations
+  - [x] Implement `src/game/input/ControlsConfig.ts` - Default control scheme implementation
+  - [x] Implement `src/game/input/ControlsManager.ts` - Handle loading/saving/resetting controls
+  - [x] Create `src/core/utils/StorageManager.ts` - Abstract storage interface for browser persistence
+  - [x] Create `src/core/utils/LocalStorageAdapter.ts` - Browser localStorage implementation
+  - [x] Write tests: `tests/unit/game/input/ControlsManager.test.ts`
+- [x] Implement action binding UI for players
+  - [x] Create `src/game/ui/controls/ControlsMenuScreen.ts` - Controls menu screen accessible from pause menu
+  - [x] Create `src/game/ui/controls/ControlBindingPanel.ts` - Panel for categories of controls (Movement, Weapons, etc.)
+  - [x] Create `src/game/ui/controls/BindingRow.ts` - Individual configurable control mapping row
+  - [x] Create `src/game/ui/controls/KeyCaptureDialog.ts` - Modal for capturing new key bindings
+  - [x] Create `src/game/ui/controls/ControlsUIManager.ts` - Manages UI state for control configuration
+  - [x] Write tests: `tests/unit/game/ui/controls/ControlsUIManager.test.ts`
 
 #### Rendering System
 - [ ] Improve SceneManager with multi-scene support
