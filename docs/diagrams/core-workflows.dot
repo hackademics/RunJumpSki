@@ -1,0 +1,45 @@
+digraph "Core Workflows" {
+  rankdir=LR;
+  node [shape=box, style=filled, fillcolor=lightblue, fontname=Arial];
+  edge [fontname=Arial, fontsize=10];
+  label="Core Workflows";
+  labelloc=t;
+
+  subgraph cluster_initialization {
+    label="Initialization Workflow";
+    style=filled;
+    color=lightgrey;
+    node [style=filled, fillcolor=white];
+    "Engine Initialization" -> "System Registration" -> "Service Registration" -> "Asset Loading" -> "Scene Setup";
+  }
+
+  subgraph cluster_game_loop {
+    label="Game Loop Workflow";
+    style=filled;
+    color=lightblue;
+    node [style=filled, fillcolor=white];
+    "Input Processing" -> "Physics Update" -> "Game Logic Update" -> "Collision Detection" -> "Rendering" -> "Audio Update";
+    "Audio Update" -> "Input Processing" [constraint=false, style=dashed, label="Next Frame"];
+  }
+
+  subgraph cluster_entity_lifecycle {
+    label="Entity Lifecycle Workflow";
+    style=filled;
+    color=lightgreen;
+    node [style=filled, fillcolor=white];
+    "Entity Creation" -> "Component Attachment" -> "Entity Initialization" -> "Entity Updates" -> "Entity Disposal";
+  }
+
+  subgraph cluster_event_handling {
+    label="Event Handling Workflow";
+    style=filled;
+    color=lightyellow;
+    node [style=filled, fillcolor=white];
+    "Event Subscription" -> "Event Publishing" -> "Event Processing" -> "Callback Execution";
+  }
+
+  "Scene Setup" -> "Input Processing" [style=dashed, label="Start Game Loop"];
+  "Entity Creation" -> "Game Logic Update" [style=dashed, label="Entities participate in game loop"];
+  "Event Publishing" -> "Game Logic Update" [style=dashed, label="Events trigger logic"];
+}
+

@@ -1,0 +1,39 @@
+name: API Consistency Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  api-consistency:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '16'
+    
+    - name: Set up PowerShell
+      uses: actions/setup-powershell@v1
+      with:
+        powershell-version: '7.0'
+    
+    - name: Install dependencies
+      run: npm install
+    
+    - name: ESLint API consistency check
+      run: npx eslint --config .eslintrc.js --plugin ./scripts/eslint-api-consistency.js --rule 'api-consistency/method-naming: warn' --rule 'api-consistency/option-objects: warn' --rule 'api-consistency/access-modifiers: warn' src/**/*.ts
+    
+    - name: Run API consistency analysis
+      run: pwsh -File ./scripts/analyze-api-consistency.ps1 -exportCsv -outputFile ./api-consistency-report.csv
+    
+    - name: Upload API consistency report
+      uses: actions/upload-artifact@v2
+      with:
+        name: api-consistency-report
+        path: ./api-consistency-report.csv 
