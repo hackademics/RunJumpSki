@@ -105,11 +105,11 @@
     - [x] Integration with terrain collision system
     - [x] Gravity and acceleration
     - [x] Maximum speed enforcement
-- [ ] Create projectile physics system
-  - [ ] Implement `src/core/physics/ProjectilePhysics.ts` and `src/core/physics/IProjectilePhysics.ts`
-  - [ ] Create `src/game/weapons/SpinfusorProjectile.ts` and `src/game/weapons/GrenadeProjectile.ts`
-  - [ ] Develop trajectory calculation system in `src/core/physics/TrajectoryCalculator.ts`
-  - [ ] Write tests: `tests/unit/core/physics/ProjectilePhysics.test.ts` and `tests/unit/game/weapons/SpinfusorProjectile.test.ts`
+- [x] Create projectile physics system
+  - [x] Implement `src/core/physics/ProjectilePhysics.ts` and `src/core/physics/IProjectilePhysics.ts`
+  - [x] Create `src/game/weapons/SpinfusorProjectile.ts` and `src/game/weapons/GrenadeProjectile.ts`
+  - [x] Develop trajectory calculation system in `src/core/physics/TrajectoryCalculator.ts`
+  - [x] Write tests: `tests/unit/core/physics/ProjectilePhysics.test.ts` and `tests/unit/game/weapons/SpinfusorProjectile.test.ts`
 
 #### Input System
 - [ ] Expand InputMapper with game-specific actions
