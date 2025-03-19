@@ -1,0 +1,568 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 📏 RunJumpSki Cursor Rules
+
+This file defines the development standards and patterns for the RunJumpSki game project. Follow these rules meticulously to maintain code quality, avoid duplication, and ensure predictable patterns across the codebase.
+
+## Project Status
+
+Always refer to the file [STATUS.md](mdc:STATUS.md) to keep track of completed and remaining tasks.  
+
+## Core Engine
+
+Always refer to the document [CoreEngine.md](mdc:docs/CoreEngine.md) to reference the CORE implementation and base interfaces for implemenation in custom classes.  The "/src/core" folder should never contain code specific to our unique game features and should only server core functionality required to build our game.
+
+## Game Design
+
+Always refer to the document [GameDesign.md](mdc:docs/GameDesign.md) to reference the custom game play that we are developing.  It has the unique features and gameplay rules specific to our game.
+
+## 📂 Directory Structure
+
+The following directory structure is **MANDATORY** - do not create alternative folders or duplicate functionality:
+
+```
+src/
+├── core/               # Core game engine systems
+│   ├── assets/         # Asset Management
+│   ├── audio/          # Audio and Sound Management
+│   ├── base/           # Base classes and interfaces
+│   ├── ecs/            # Entity Component System
+│   │   └── components/ # ALL components go here
+│   ├── renderer/       # Rendering system (NOT "rendering")
+│   ├── input/          # Input handling systems
+│   ├── physics/        # Physics engine integration
+│   ├── events/         # Event bus and messaging
+│   ├── assets/         # Asset loading and management
+│   ├── utils/          # Utility functions and helpers
+│   └── debug/          # Debugging tools
+├── game/               # Game-specific implementations
+│   ├── player/         # Player systems
+│   ├── terrain/        # Terrain systems
+│   ├── weapons/        # Weapon systems
+│   ├── targets/        # Target and turret systems
+│   └── ui/             # Game UI systems
+├── types/              # Type definitions
+└── index.ts            # Entry point
+doc/                    # All game and program documentation for references
+README.md               # Root Readme for game description, features and overview of application
+STATUS.md               # Task Progression and Management
+
+```
+
+## 🚫 Forbidden Patterns
+
+These patterns are STRICTLY FORBIDDEN:
+
+1. ❌ **Creating a "rendering" folder** when "renderer" already exists
+2. ❌ **Putting components in "base/components"** - ALL components go in "core/ecs/components"
+3. ❌ **Creating custom Vector3 type** - ALWAYS use BABYLON.Vector3
+4. ❌ **Duplicating existing functionality** in different locations
+5. ❌ **Using "any" type** - Always use proper type definitions
+6. ❌ **Creating ambiguous class names** without proper prefixes/suffixes
+
+## ✅ Required Patterns
+
+These patterns are MANDATORY:
+
+1. ✅ Use interfaces for all public APIs (`IComponentName`)
+2. ✅ Extend base classes where appropriate (`extends Component`)
+3. ✅ Use dependency injection for all services
+4. ✅ Follow established naming conventions
+5. ✅ Place components in their correct locations
+6. ✅ Implement proper error handling and validation
+7. ✅ Add proper JSDoc comments
+8. ✅ Write unit tests for all components
+
+## 📝 Code Structure
+
+### Class Template
+
+```typescript
+/**
+ * @file path/to/ExampleComponent.ts
+ * @description Brief description of component purpose
+ */
+
+// External libraries (Babylon.js)
+import * as BABYLON from 'babylonjs';
+
+// Core engine imports
+import { Component } from '../core/ecs/Component';
+import { IEntity } from '../core/ecs/IEntity';
+import { EventBus } from '../core/events/EventBus';
+
+// Component imports
+import { ITransformComponent } from '../core/ecs/components/TransformComponent';
+
+// Utility imports
+import { Logger } from '../core/utils/Logger';
+
+// Type definitions
+import { ComponentError } from '../types/errors/ComponentError';
+
+/**
+ * Configuration options interface
+ */
+export interface ExampleComponentOptions {
+    maxValue: number;
+    initialValue?: number;
+}
+
+/**
+ * Default configuration
+ */
+export const DEFAULT_EXAMPLE_OPTIONS: ExampleComponentOptions = {
+    maxValue: 100,
+    initialValue: 0
+};
+
+/**
+ * Component interface
+ */
+export interface IExampleComponent {
+    getValue(): number;
+    setValue(value: number): void;
+    doSomething(): void;
+}
+
+/**
+ * Implementation of example component
+ */
+export class ExampleComponent extends Component implements IExampleComponent {
+    public readonly type: string = 'example';
+    
+    private value: number;
+    private maxValue: number;
+    
+    /**
+     * Create a new example component
+     */
+    constructor(options: Partial<ExampleComponentOptions> = {}) {
+        super({ type: 'example' });
+        
+        // Merge with default options
+        const config = { ...DEFAULT_EXAMPLE_OPTIONS, ...options };
+        
+        this.value = config.initialValue!;
+        this.maxValue = config.maxValue;
+    }
+    
+    /**
+     * Initialize the component
+     */
+    public override init(entity: IEntity): void {
+        super.init(entity);
+        
+        // Get required components
+        const transformComponent = entity.getComponent<ITransformComponent>('transform');
+        if (!transformComponent) {
+            throw new ComponentError('example', entity.id, 'Entity must have a transform component');
+        }
+    }
+    
+    /**
+     * Update the component
+     */
+    public override update(deltaTime: number): void {
+        if (!this.isEnabled()) return;
+        
+        // Component-specific update logic
+    }
+    
+    /**
+     * Clean up resources
+     */
+    public override dispose(): void {
+        // Component-specific cleanup
+        
+        super.dispose();
+    }
+    
+    /**
+     * Get the current value
+     */
+    public getValue(): number {
+        return this.value;
+    }
+    
+    /**
+     * Set the current value
+     */
+    public setValue(value: number): void {
+        this.value = Math.min(value, this.maxValue);
+    }
+    
+    /**
+     * Do something example
+     */
+    public doSomething(): void {
+        // Implementation
+    }
+    
+    /**
+     * Helper method example
+     */
+    private calculateSomething(): number {
+        return this.value * 2;
+    }
+}
+```
+
+### Import Order
+
+1. External libraries (Babylon.js)
+2. Core engine imports
+3. Component imports
+4. Utility imports
+5. Type imports
+
+### Naming Conventions
+
+- **Files**: PascalCase for classes (`ExampleComponent.ts`)
+- **Interfaces**: PascalCase with `I` prefix (`IExampleComponent`)
+- **Classes**: PascalCase (`ExampleComponent`)
+- **Methods**: camelCase (`getValue()`)
+- **Properties**: camelCase (`maxValue`)
+- **Constants**: UPPER_SNAKE_CASE (`DEFAULT_EXAMPLE_OPTIONS`)
+- **Type aliases**: PascalCase (`Vector3`)
+- **Enums**: PascalCase with values in PascalCase (`MovementState.Running`)
+
+## 🛣️ Component Development Process
+
+1. **Define the interface first**
+   - Start with clear public API
+   - Document parameters and return types
+
+2. **Create configuration options**
+   - Define required and optional parameters
+   - Create defaults for optional parameters
+
+3. **Implement the component**
+   - Extend the appropriate base class
+   - Implement the interface
+   - Add proper error handling
+
+4. **Write unit tests**
+   - Test all public methods
+   - Test error handling
+   - Test edge cases
+
+5. **Update documentation**
+   - Add JSDoc comments
+   - Document usage examples
+   - Update project status
+
+## 🔍 TypeScript Best Practices
+
+1. **Use interfaces for all public APIs**
+   ```typescript
+   export interface IMovementComponent {
+       move(direction: BABYLON.Vector3): void;
+       getVelocity(): BABYLON.Vector3;
+   }
+   ```
+
+2. **Use strong typing everywhere - no any**
+   ```typescript
+   // GOOD
+   function processEntity(entity: IEntity): void
+   
+   // BAD
+   function processEntity(entity: any): void
+   ```
+
+3. **Use generics for type-safe containers**
+   ```typescript
+   export class StateManager<TState extends string, TData = unknown> {
+       private state: TState;
+       private data: TData | undefined;
+   }
+   ```
+
+4. **Use readonly for immutable properties**
+   ```typescript
+   export interface ComponentOptions {
+       readonly type: string;
+       readonly debug?: boolean;
+   }
+   ```
+
+5. **Use discriminated unions for state management**
+   ```typescript
+   type PlayerState = 
+       | { type: 'idle' }
+       | { type: 'running', speed: number }
+       | { type: 'skiing', speed: number, surfaceAngle: number };
+   `
+
+⏱️ Asynchronous Programming with Promises
+
+// Always return a Promise from asynchronous functions
+```typescript
+async function fetchData(): Promise<Data> {
+    // Implementation here
+    return data;
+}
+ ```
+
+// Handle errors with try/catch
+```typescript
+async function loadData() {
+    try {
+        const data = await fetchData();
+        return data;
+    } catch (error) {
+        console.error("Error fetching data:", error);
+        throw error;
+    }
+}
+ ```
+
+// Avoid mixing Promise chains with async/await
+```typescript
+async function process() {
+    const result = await fetchData();
+}
+
+// Instead of mixing styles
+fetchData()
+    .then(result => { /* ... */ })
+    .catch(error => { /* ... */ });
+```
+
+// Return early on error conditions
+```typescript
+async function validateData(data: Data): Promise<Data> {
+    if (!data) {
+        throw new Error("Data is missing");
+    }
+    return data;
+}
+
+try {
+    return await fetch(url, { signal: controller.signal });
+} finally {
+    clearTimeout(timeoutId);
+}
+```
+
+# Type Import Reference
+
+## Babylon.js Types
+Always import Babylon.js types as:
+```typescript
+import * as BABYLON from "babylonjs";
+Then use:
+
+BABYLON.Vector3
+BABYLON.Scene
+BABYLON.Engine
+
+Core Engine Types
+
+Import core types from their source:
+
+typescriptCopyimport { IEntity } from "@core/ecs/IEntity";
+import { IComponent } from "@core/ecs/IComponent";
+import { System } from "@core/base/System";
+Never Create Duplicate Types
+The following types already exist and should be imported, not recreated:
+
+Vector3 (use BABYLON.Vector3)
+Transform (use TransformComponent)
+Logger (import from "@core/utils/Logger")
+
+## 🛠️ Error Handling
+
+1. **Use custom error types**
+   ```typescript
+   export class ComponentError extends Error {
+       constructor(
+           public readonly componentType: string,
+           public readonly entityId: string | undefined,
+           message: string
+       ) {
+           super(`${componentType}${entityId ? ` (${entityId})` : ''}: ${message}`);
+           this.name = 'ComponentError';
+       }
+   }
+   ```
+
+2. **Check for required dependencies**
+   ```typescript
+   public init(entity: IEntity): void {
+       super.init(entity);
+       
+       const transformComponent = entity.getComponent<ITransformComponent>('transform');
+       if (!transformComponent) {
+           throw new ComponentError('movement', entity.id, 'Entity must have a transform component');
+       }
+   }
+   ```
+
+3. **Validate parameters**
+   ```typescript
+   public setSpeed(speed: number): void {
+       if (speed < 0) {
+           throw new ComponentError('movement', this.entity?.id, 'Speed cannot be negative');
+       }
+       
+       this.speed = speed;
+   }
+   ```
+
+4. **Handle errors at appropriate levels**
+   ```typescript
+   public update(deltaTime: number): void {
+       try {
+           // Update logic
+       } catch (error) {
+           this.logger.error(`Error in component update: ${error.message}`);
+           // Handle appropriately based on error type
+       }
+   }
+   ```
+
+## 🧪 Testing Patterns
+
+1. **Test file structure**
+   ```typescript
+   describe('MovementComponent', () => {
+       let component: MovementComponent;
+       let entity: IEntity;
+       
+       beforeEach(() => {
+           // Set up
+       });
+       
+       afterEach(() => {
+           // Clean up
+       });
+       
+       test('should limit speed to max speed', () => {
+           // Arrange
+           // Act
+           // Assert
+       });
+   });
+   ```
+
+2. **Mock creation helpers**
+   ```typescript
+   export function createMockEntity(id: string = 'test-entity'): IEntity {
+       return {
+           id,
+           addComponent: jest.fn(),
+           getComponent: jest.fn(),
+           removeComponent: jest.fn(),
+           update: jest.fn(),
+           dispose: jest.fn()
+       };
+   }
+   ```
+
+## 📋 Recovery Checklist
+
+If development context is lost:
+
+1. **Check project status**
+   - Review `ProjectStatus.md` for implemented components
+   - Check current development focus
+
+2. **Review architecture**
+   - Check `GameRoadmap.md` for system design
+   - Look at existing implementations for patterns
+
+3. **Follow directory structure**
+   - Ensure all new files go in the correct locations
+   - Check existing file patterns
+
+4. **Maintain consistent interfaces**
+   - Use existing interfaces
+   - Follow established patterns
+
+## 🔄 AI Development Workflow
+
+When working with AI assistance:
+
+1. **Start with a clear context reset**
+   ```
+   /context I'm working on the RunJumpSki Babylon.js game engine with strict folder structure.
+   Renderer is in "renderer/" NOT "rendering/".
+   Components are in "ecs/components/" NOT "base/components/".
+   ALWAYS use BABYLON.Vector3, not custom Vector3.
+   Current focus: [check TASK_TRACKER.md]
+   
+   Please continue helping me implement [specific component/system] following our established patterns.
+   ```
+
+2. **Request complete implementations**
+   - Ask for the full file content
+   - Specify file path and name
+   - Request related test file
+
+3. **Verify implementations against rules**
+   - Check for forbidden patterns
+   - Ensure required patterns are followed
+   - Verify proper error handling
+   - Check for complete documentation
+
+## 📚 Documentation Standards
+
+1. **JSDoc comments**
+   ```typescript
+   /**
+    * Applies an impulse force to the entity
+    * 
+    * @param direction - Direction vector (will be normalized)
+    * @param force - Force magnitude in Newtons
+    * @throws {ComponentError} If component is disabled or direction is zero
+    */
+   public applyImpulse(direction: BABYLON.Vector3, force: number): void
+   ```
+
+2. **File headers**
+   ```typescript
+   /**
+    * @file src/core/ecs/components/MovementComponent.ts
+    * @description Handles entity movement, including walking, running, and jumping
+    * 
+    * @dependencies TransformComponent, PhysicsComponent
+    */
+   ```
+
+3. **Class documentation**
+   ```typescript
+   /**
+    * Handles entity movement, including walking, running, and jumping
+    * 
+    * Required components:
+    * - TransformComponent: For position updates
+    * - PhysicsComponent: For physics integration (optional)
+    * 
+    * @example
+    * const entity = new Entity('player');
+    * entity.addComponent(new TransformComponent());
+    * entity.addComponent(new MovementComponent({ maxSpeed: 10 }));
+    */
+   ```
+
+## ✅ Verification Checklist
+
+Before committing new code:
+
+- [ ] Follows correct directory structure
+- [ ] Uses proper naming conventions
+- [ ] Extends appropriate base classes
+- [ ] Implements proper interfaces
+- [ ] Includes complete JSDoc documentation
+- [ ] Has proper error handling
+- [ ] Includes unit tests
+- [ ] No forbidden patterns
+- [ ] No code duplication
+- [ ] Passes linting
+- [ ] Passes TypeScript compiler checks
+- [ ] Updates project status document [STATUS.md](mdc:STATUS.md)

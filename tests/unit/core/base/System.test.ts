@@ -20,8 +20,10 @@ class TestSystem extends System {
   }
   
   public update(deltaTime: number): void {
-    super.update(deltaTime);
-    this.testValue += deltaTime;
+    if (this.isEnabled()) {
+      super.update(deltaTime);
+      this.testValue += deltaTime;
+    }
   }
   
   public async dispose(): Promise<void> {

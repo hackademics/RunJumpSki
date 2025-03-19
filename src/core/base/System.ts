@@ -77,6 +77,8 @@ export abstract class System implements ISystem {
    */
   public update(deltaTime: number): void {
     // Base implementation does nothing
+    // Only subclasses should add implementation
+    // The subclass should check isEnabled() before performing updates
   }
   
   /**
