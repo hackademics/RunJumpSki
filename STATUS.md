@@ -59,10 +59,46 @@
   - `tests/unit/core/ecs/components/FirstPersonCameraComponent.test.ts` ✅
 
 #### Physics System
-- [ ] Complete physics integration with BabylonJS
-- [ ] Implement collision detection system
-- [ ] Create terrain collision handling
+- [x] Complete physics integration with BabylonJS
+  - [x] Enhance `src/core/physics/PhysicsSystem.ts` to fully integrate with BabylonJS physics ✅
+  - [x] Update `src/core/physics/IPhysicsSystem.ts` with additional required methods ✅
+  - [x] Create `src/core/physics/PhysicsManager.ts` and `src/core/physics/IPhysicsManager.ts` for higher-level physics control ✅
+  - [x] Write tests: `tests/unit/core/physics/PhysicsSystem.test.ts` and `tests/unit/core/physics/PhysicsManager.test.ts` ✅
+- [x] Implement collision detection system
+  - [x] Create collision system file structure
+    - [x] src/core/physics/ICollisionSystem.ts
+    - [x] src/core/physics/CollisionSystem.ts
+    - [x] src/core/physics/ICollisionManager.ts
+    - [x] src/core/physics/CollisionManager.ts
+  - [x] Implement collision event system (src/core/events/CollisionEvents.ts)
+  - [x] Tests
+    - [x] tests/unit/core/physics/CollisionSystem.test.ts
+    - [x] tests/unit/core/physics/CollisionManager.test.ts
+- [x] Create terrain collision handling
+  - [x] Implementation of terrain collision system
+    - [x] Create terrain collision file structure
+      - [x] src/core/physics/ITerrainCollider.ts
+      - [x] src/core/physics/TerrainCollider.ts
+      - [x] src/core/physics/TerrainColliderFactory.ts
+      - [x] src/core/terrain/TerrainManager.ts
+    - [x] Implement heightmap-based terrain collision detection
+    - [x] Implement surface information retrieval (height, normal, slope)
+    - [x] Implement terrain material system for varying friction
+    - [x] Tests
+      - [x] tests/unit/core/physics/TerrainCollider.test.ts
+      - [x] tests/unit/core/physics/TerrainColliderFactory.test.ts
 - [ ] Develop movement physics (skiing, jetpack)
+  - [ ] Create `src/game/player/SkiingPhysics.ts` and `src/game/player/ISkiingPhysics.ts`
+  - [ ] Implement `src/game/player/JetpackPhysics.ts` and `src/game/player/IJetpackPhysics.ts`
+  - [ ] Develop `src/game/player/MovementController.ts` integrating skiing and jetpack
+  - [ ] Create friction model system in `src/core/physics/FrictionModel.ts`
+  - [ ] Implement force application utilities in `src/core/physics/ForceApplicator.ts`
+  - [ ] Write tests: `tests/unit/game/player/SkiingPhysics.test.ts`, `tests/unit/game/player/JetpackPhysics.test.ts`, and `tests/unit/game/player/MovementController.test.ts`
+- [ ] Create projectile physics system
+  - [ ] Implement `src/core/physics/ProjectilePhysics.ts` and `src/core/physics/IProjectilePhysics.ts`
+  - [ ] Create `src/game/weapons/SpinfusorProjectile.ts` and `src/game/weapons/GrenadeProjectile.ts`
+  - [ ] Develop trajectory calculation system in `src/core/physics/TrajectoryCalculator.ts`
+  - [ ] Write tests: `tests/unit/core/physics/ProjectilePhysics.test.ts` and `tests/unit/game/weapons/SpinfusorProjectile.test.ts`
 
 #### Input System
 - [ ] Expand InputMapper with game-specific actions
@@ -149,7 +185,14 @@
    - Audio Components completed ✅
 2. Develop player controller with basic movement
 3. Complete physics system for collision detection
+   - Enhance Physics System with BabylonJS integration
+   - Implement Collision System
+   - Create Terrain Collision Handling
+   - Develop Projectile Physics
 4. Create skiing and jetpack mechanics
+   - Implement SkiingPhysics system
+   - Develop JetpackPhysics system
+   - Create MovementController integrating both systems
 5. Implement basic weapon systems
 6. Design first playable map
 7. Add targets and turrets
