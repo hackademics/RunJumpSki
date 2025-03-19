@@ -87,13 +87,24 @@
     - [x] Tests
       - [x] tests/unit/core/physics/TerrainCollider.test.ts
       - [x] tests/unit/core/physics/TerrainColliderFactory.test.ts
-- [ ] Develop movement physics (skiing, jetpack)
-  - [ ] Create `src/game/player/SkiingPhysics.ts` and `src/game/player/ISkiingPhysics.ts`
-  - [ ] Implement `src/game/player/JetpackPhysics.ts` and `src/game/player/IJetpackPhysics.ts`
-  - [ ] Develop `src/game/player/MovementController.ts` integrating skiing and jetpack
-  - [ ] Create friction model system in `src/core/physics/FrictionModel.ts`
-  - [ ] Implement force application utilities in `src/core/physics/ForceApplicator.ts`
-  - [ ] Write tests: `tests/unit/game/player/SkiingPhysics.test.ts`, `tests/unit/game/player/JetpackPhysics.test.ts`, and `tests/unit/game/player/MovementController.test.ts`
+- [x] Develop movement physics (skiing, jetpack)
+  - [x] Skiing physics implementation
+    - [x] Create `ISkiingPhysics.ts` interface and `SkiingPhysics.ts` implementation 
+    - [x] Tests in `tests/unit/game/player/SkiingPhysics.test.ts`
+    - [x] Slope-based movement mechanics
+    - [x] Friction control based on terrain material
+  - [x] Jetpack physics implementation
+    - [x] Create `IJetpackPhysics.ts` interface and `JetpackPhysics.ts` implementation
+    - [x] Tests in `tests/unit/game/player/JetpackPhysics.test.ts`
+    - [x] Fuel management system
+    - [x] Thrust and directional control
+  - [x] Character physics controller
+    - [x] Create `IPlayerPhysics.ts` interface and `PlayerPhysics.ts` implementation
+    - [x] Tests in `tests/unit/game/player/PlayerPhysics.test.ts`
+    - [x] Movement mode transitions (walking, running, skiing, jetpack, sliding, air)
+    - [x] Integration with terrain collision system
+    - [x] Gravity and acceleration
+    - [x] Maximum speed enforcement
 - [ ] Create projectile physics system
   - [ ] Implement `src/core/physics/ProjectilePhysics.ts` and `src/core/physics/IProjectilePhysics.ts`
   - [ ] Create `src/game/weapons/SpinfusorProjectile.ts` and `src/game/weapons/GrenadeProjectile.ts`
@@ -175,6 +186,15 @@
 - [ ] Create player data storage with KV
 - [ ] Design asset delivery optimization
 
+## Character Controller
+- [ ] Implement character controller
+  - [ ] Create `src/game/player/CharacterController.ts` and `src/game/player/ICharacterController.ts`
+  - [ ] Integrate with player physics
+  - [ ] Implement camera control
+  - [ ] Handle character animation states
+  - [ ] Implement input mapping system
+  - [ ] Create tests at `tests/unit/game/player/CharacterController.test.ts`
+
 ## Next Steps Priority
 
 1. ✅ Implement core ECS components (Transform, Camera, Renderable, Physics, Audio)
@@ -206,3 +226,17 @@
 - Physics implementation will be crucial for the skiing mechanics
 - Should implement a task/feature tracking system for development
 - Consider developing an editor tool for map design once core gameplay is working
+
+## Movement Physics
+
+- [x] Design character movement system
+  - [x] Create interfaces for movement physics (`ISkiingPhysics.ts`, `IJetpackPhysics.ts`, `IPlayerPhysics.ts`)
+  - [x] Implement skiing mechanics (`SkiingPhysics.ts`)
+  - [x] Implement jetpack mechanics (`JetpackPhysics.ts`)
+  - [x] Implement combined player physics (`PlayerPhysics.ts`)
+  - [x] Implement player movement controller (`MovementController.ts`) 
+  - [x] Add tests for movement physics
+
+## Collision Detection System
+
+- [x] Design collision detection system

@@ -1,9 +1,10 @@
 import { ILogger, LogLevel } from './ILogger';
+import { System } from '../base/System';
 
 /**
  * Default implementation of the ILogger interface
  */
-export class Logger implements ILogger {
+export class Logger extends System implements ILogger {
   private level: LogLevel = LogLevel.INFO;
   private tags: string[] = [];
 
@@ -13,6 +14,8 @@ export class Logger implements ILogger {
    * @param initialLevel Initial log level
    */
   constructor(private context?: string, initialLevel?: LogLevel) {
+    super({ name: 'Logger', priority: 0 });
+    
     if (initialLevel !== undefined) {
       this.level = initialLevel;
     }
@@ -20,6 +23,27 @@ export class Logger implements ILogger {
     if (context) {
       this.addTag(context);
     }
+  }
+
+  /**
+   * Initialize the logger
+   */
+  public async initialize(): Promise<void> {
+    // No special initialization needed
+  }
+
+  /**
+   * Update the logger - not needed for logger functionality
+   */
+  public update(deltaTime: number): void {
+    // Logger doesn't need updates
+  }
+
+  /**
+   * Clean up resources
+   */
+  public async dispose(): Promise<void> {
+    // No special cleanup needed
   }
 
   /**
@@ -35,6 +59,15 @@ export class Logger implements ILogger {
    */
   public getLevel(): LogLevel {
     return this.level;
+  }
+
+  /**
+   * Log a trace message
+   * @param message The message to log
+   * @param optionalParams Additional parameters to include
+   */
+  public trace(message: string, ...optionalParams: any[]): void {
+    this.log(LogLevel.TRACE, message, ...optionalParams);
   }
 
   /**

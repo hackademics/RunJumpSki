@@ -11,6 +11,8 @@ import { Entity } from './Entity';
 import { Logger } from '../utils/Logger';
 import { EventBus } from '../events/EventBus';
 import { System } from '../base/System';
+import { SystemOptions } from '../base/ISystem';
+import { LogLevel } from '../utils/ILogger';
 
 /**
  * Configuration options for the EntityManager
@@ -32,7 +34,7 @@ export interface EntityManagerOptions {
 /**
  * Default configuration for the EntityManager
  */
-const DEFAULT_OPTIONS: EntityManagerOptions = {
+const DEFAULT_OPTIONS: Required<EntityManagerOptions> = {
   maxEntities: Infinity,
   debug: false
 };
@@ -71,15 +73,13 @@ export class EntityManager extends System {
    * @param options Configuration options for the entity manager
    */
   constructor(options: EntityManagerOptions = {}) {
-    super('EntityManager');
+    super({ name: 'EntityManager' });
 
     // Merge provided options with defaults
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.options = { ...DEFAULT_OPTIONS, ...options } as Required<EntityManagerOptions>;
 
     // Initialize logger
-    this.logger = new Logger('EntityManager', {
-      enabled: this.options.debug
-    });
+    this.logger = new Logger('EntityManager', this.options.debug ? LogLevel.DEBUG : LogLevel.INFO);
 
     // Get event bus instance
     this.eventBus = EventBus.getInstance();
@@ -110,7 +110,7 @@ export class EntityManager extends System {
     this.logger.debug(`Created entity: ${entity.id}`);
 
     // Emit entity creation event
-    this.eventBus.emit('entity:created', { 
+    this.eventBus.dispatch('entity:created', { 
       entityId: entity.id 
     });
 
@@ -148,13 +148,13 @@ export class EntityManager extends System {
         this.logger.debug(`Removed entity: ${id}`);
 
         // Emit entity removal event
-        this.eventBus.emit('entity:removed', { 
-          entityId: id 
+        this.eventBus.dispatch('entity:removed', {
+          entityId: id
         });
 
         return true;
       } catch (error) {
-        this.logger.error(`Failed to remove entity ${id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        this.logger.error(`Error removing entity ${id}: ${error}`);
         return false;
       }
     }
@@ -203,10 +203,10 @@ export class EntityManager extends System {
     // Clear the entities collection
     this.entities.clear();
 
-    this.logger.debug('All entities cleared');
+    this.logger.debug('Cleared all entities');
 
-    // Emit clear event
-    this.eventBus.emit('entities:cleared', {});
+    // Emit entities cleared event
+    this.eventBus.dispatch('entities:cleared', {});
   }
 
   /**
