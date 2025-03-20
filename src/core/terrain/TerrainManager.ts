@@ -8,6 +8,8 @@ import { TerrainCollider } from '../physics/TerrainCollider';
 import { ITerrainCollider, HeightmapData, TerrainSurfaceInfo } from '../physics/ITerrainCollider';
 import { IGameObjectManager } from '../IGameObjectManager';
 import { EventEmitter } from '../events/EventEmitter';
+import { Logger } from '../utils/Logger';
+import { ServiceLocator } from '../base/ServiceLocator';
 
 // Terrain material types
 export enum TerrainMaterialType {
@@ -69,6 +71,7 @@ export class TerrainManager implements IGameObjectManager {
   private initialized: boolean = false;
   private loadingPromise: Promise<void> | null = null;
   private materialCallbackIds: Map<TerrainMaterialType, string> = new Map();
+  private logger: Logger;
 
   /**
    * Creates a new terrain manager
@@ -76,7 +79,21 @@ export class TerrainManager implements IGameObjectManager {
    */
   constructor(scene: BABYLON.Scene) {
     this.scene = scene;
-    this.terrainCollider = new TerrainCollider();
+    // Create terrain collider with the scene
+    this.terrainCollider = new TerrainCollider(this.scene);
+    this.logger = new Logger('TerrainManager');
+    
+    // Try to get the logger from ServiceLocator if available
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add the TerrainManager tag
+        this.logger.addTag('TerrainManager');
+      }
+    } catch (e) {
+      // If service locator is not available, we'll use the default logger
+    }
   }
 
   /**
@@ -89,7 +106,7 @@ export class TerrainManager implements IGameObjectManager {
     this.terrainCollider.initialize(this.scene);
     
     this.initialized = true;
-    console.log("TerrainManager initialized");
+    this.logger.info("TerrainManager initialized");
   }
 
   /**
@@ -131,9 +148,9 @@ export class TerrainManager implements IGameObjectManager {
       // Emit the terrain loaded event
       this.events.emit(TerrainEvents.TERRAIN_LOADED, { terrain: this.terrainMesh });
 
-      console.log("Terrain loaded");
+      this.logger.info("Terrain loaded");
     } catch (error) {
-      console.error("Failed to load terrain:", error);
+      this.logger.error("Failed to load terrain:", error as Error);
       throw error;
     }
   }
@@ -330,37 +347,63 @@ export class TerrainManager implements IGameObjectManager {
     // Create a ground mesh from the heightmap data
     const { width, height, heights, scale, verticalScale, minHeight, maxHeight } = this.heightmapData;
     
-    // Create a heightmap texture for the ground mesh
-    const heightmapTexture = new BABYLON.RawTexture(
-      new Float32Array(heights),
-      width,
-      height,
-      BABYLON.Engine.TEXTUREFORMAT_R,
+    // Instead of using RawTexture directly, create a dynamic texture that we have more control over
+    // This avoids issues with read-only properties like invertY
+    const heightmapSize = width * height;
+    
+    // Use DynamicTexture with correct signature
+    const heightTexture = new BABYLON.DynamicTexture(
+      "heightmapTexture",
+      { width, height },
       this.scene,
-      false,
-      false,
-      BABYLON.Texture.NEAREST_SAMPLINGMODE
+      false // generateMipMaps: false
     );
     
-    // Create the ground mesh
+    // Get the context and update the content with height data
+    const context = heightTexture.getContext();
+
+    // Create image data properly with Uint8ClampedArray
+    const imageDataArray = new Uint8ClampedArray(width * height * 4);
+
+    // Fill the image data with height values (normalized to 0-255)
+    for (let i = 0; i < heightmapSize; i++) {
+      // Convert height value to 0-255 range for the red channel
+      const normalizedHeight = Math.floor(((heights[i] - minHeight) / (maxHeight - minHeight)) * 255);
+      const pixelIndex = i * 4;
+      imageDataArray[pixelIndex] = normalizedHeight;     // R
+      imageDataArray[pixelIndex + 1] = normalizedHeight; // G
+      imageDataArray[pixelIndex + 2] = normalizedHeight; // B
+      imageDataArray[pixelIndex + 3] = 255;              // A (fully opaque)
+    }
+
+    // Create image data from array and put it into context
+    const imageData = new ImageData(imageDataArray, width, height);
+    context.putImageData(imageData, 0, 0);
+    heightTexture.update();
+    
+    // Create the ground mesh from our custom heightmap
     this.terrainMesh = BABYLON.MeshBuilder.CreateGroundFromHeightMap(
       "terrain",
-      "heightmap", // This will be overridden with our raw heightmap texture
+      "heightmapTexture", // This connects to our dynamic texture
       {
         width: width * scale.x,
         height: height * scale.y,
         subdivisions: Math.min(width, height) / 4, // Reduce for better performance
         minHeight: minHeight * verticalScale,
-        maxHeight: maxHeight * verticalScale
+        maxHeight: maxHeight * verticalScale,
+        onReady: (mesh) => {
+          // Set the terrain mesh in the collider
+          this.terrainCollider.setTerrainMesh(mesh);
+          
+          // Apply default material
+          this.applyTerrainMaterial();
+          
+          // Emit the terrain loaded event
+          this.events.emit(TerrainEvents.TERRAIN_LOADED, mesh);
+        }
       },
       this.scene
     );
-    
-    // Set the terrain mesh in the collider
-    this.terrainCollider.setTerrainMesh(this.terrainMesh);
-    
-    // Apply default material
-    this.applyTerrainMaterial();
   }
 
   /**
@@ -419,13 +462,15 @@ export class TerrainManager implements IGameObjectManager {
     // Apply the default texture if available
     const defaultMaterial = this.config.materials[TerrainMaterialType.DEFAULT];
     if (defaultMaterial && defaultMaterial.texture) {
+      // Create the texture using standard constructor
       const diffuseTexture = new BABYLON.Texture(defaultMaterial.texture, this.scene);
+      
+      // Apply the texture to the material
       material.diffuseTexture = diffuseTexture;
       
-      // Set texture scaling (using type assertion to avoid TypeScript errors)
-      const texture = material.diffuseTexture as BABYLON.Texture;
-      texture.uScale = 20;
-      texture.vScale = 20;
+      // Set texture scaling directly on the created texture instance
+      diffuseTexture.uScale = 20;
+      diffuseTexture.vScale = 20;
     } else {
       // Default color if no texture
       material.diffuseColor = new BABYLON.Color3(0.5, 0.5, 0.5);
@@ -502,6 +547,6 @@ export class TerrainManager implements IGameObjectManager {
     this.events.clear();
     this.initialized = false;
     
-    console.log("TerrainManager disposed");
+    this.logger.info("TerrainManager disposed");
   }
 }

@@ -12,6 +12,6 @@ export interface IInputSystem {
     /**
      * Destroys the input system by removing event listeners.
      */
-    destroy(): void;
+    dispose(): void;
   }
   

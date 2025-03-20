@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file src/core/ecs/components/RenderableComponent.ts
  * @description Implementation of the RenderableComponent for visual elements
  */
@@ -130,8 +130,8 @@ export class RenderableComponent extends Component implements IRenderableCompone
   /**
    * Initialize the component
    */
-  public override init(entity: IEntity): void {
-    super.init(entity);
+  public override initialize(entity: IEntity): void {
+    super.initialize(entity);
   }
   
   /**
@@ -418,4 +418,6 @@ export class RenderableComponent extends Component implements IRenderableCompone
     });
   }
 }
+
+
 

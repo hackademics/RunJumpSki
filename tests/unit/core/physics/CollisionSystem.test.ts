@@ -14,7 +14,7 @@ const createMockPhysicsSystem = (): IPhysicsSystem => {
     initialize: jest.fn(),
     update: jest.fn(),
     setGravity: jest.fn(),
-    destroy: jest.fn(),
+    dispose: jest.fn(),
     getPhysicsEngine: jest.fn().mockReturnValue({
       _impostors: new Set()
     }),
@@ -295,7 +295,7 @@ describe('CollisionSystem', () => {
       // Spy on clear methods
       const clearSpy = jest.spyOn(Map.prototype, 'clear');
       
-      collisionSystem.destroy();
+      collisionSystem.dispose();
       
       // Verify that clear was called at least 3 times (once for each Map in the class)
       expect(clearSpy).toHaveBeenCalledTimes(3);
@@ -309,3 +309,4 @@ describe('CollisionSystem', () => {
     });
   });
 });
+

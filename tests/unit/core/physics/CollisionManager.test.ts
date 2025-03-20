@@ -34,7 +34,7 @@ const createMockPhysicsSystem = (): IPhysicsSystem => {
     initialize: jest.fn(),
     update: jest.fn(),
     setGravity: jest.fn(),
-    destroy: jest.fn(),
+    dispose: jest.fn(),
     getPhysicsEngine: jest.fn().mockReturnValue({
       _impostors: new Set()
     }),
@@ -51,7 +51,7 @@ const createMockCollisionSystem = (): ICollisionSystem => {
   return {
     initialize: jest.fn(),
     update: jest.fn(),
-    destroy: jest.fn(),
+    dispose: jest.fn(),
     registerCollisionHandler: jest.fn().mockReturnValue('collision-id'),
     unregisterCollisionHandler: jest.fn(),
     registerTriggerZone: jest.fn().mockReturnValue('trigger-id'),
@@ -237,3 +237,4 @@ describe('CollisionManager', () => {
     });
   });
 });
+

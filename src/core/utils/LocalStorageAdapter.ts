@@ -4,11 +4,37 @@
  */
 
 import { IStorageAdapter } from "./StorageManager";
+import { Logger } from "./Logger";
+import { ServiceLocator } from "../base/ServiceLocator";
 
 /**
  * LocalStorageAdapter - Implements storage using browser's localStorage
  */
 export class LocalStorageAdapter implements IStorageAdapter {
+    private logger: Logger;
+    
+    /**
+     * Creates a new LocalStorageAdapter
+     */
+    constructor() {
+        // Initialize logger with default instance
+        this.logger = new Logger('LocalStorageAdapter');
+        
+        // Try to get the logger from ServiceLocator
+        try {
+            const serviceLocator = ServiceLocator.getInstance();
+            if (serviceLocator.has('logger')) {
+                this.logger = serviceLocator.get<Logger>('logger');
+                // Add context tag
+                this.logger.addTag('LocalStorageAdapter');
+            }
+        } catch (e) {
+            this.logger.warn(`Failed to get logger from ServiceLocator: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        }
+        
+        this.logger.debug('LocalStorageAdapter initialized');
+    }
+    
     /**
      * Saves a value to localStorage
      * @param key Storage key
@@ -21,7 +47,7 @@ export class LocalStorageAdapter implements IStorageAdapter {
             localStorage.setItem(key, serialized);
             return true;
         } catch (e) {
-            console.error(`Error saving to localStorage: ${key}`, e);
+            this.logger.error(`Error saving to localStorage: ${key}`, e instanceof Error ? e : String(e));
             return false;
         }
     }
@@ -40,7 +66,7 @@ export class LocalStorageAdapter implements IStorageAdapter {
             }
             return JSON.parse(serialized) as T;
         } catch (e) {
-            console.error(`Error loading from localStorage: ${key}`, e);
+            this.logger.error(`Error loading from localStorage: ${key}`, e instanceof Error ? e : String(e));
             return defaultValue || null;
         }
     }
@@ -55,7 +81,7 @@ export class LocalStorageAdapter implements IStorageAdapter {
             localStorage.removeItem(key);
             return true;
         } catch (e) {
-            console.error(`Error removing from localStorage: ${key}`, e);
+            this.logger.error(`Error removing from localStorage: ${key}`, e instanceof Error ? e : String(e));
             return false;
         }
     }
@@ -78,7 +104,7 @@ export class LocalStorageAdapter implements IStorageAdapter {
             localStorage.clear();
             return true;
         } catch (e) {
-            console.error("Error clearing localStorage", e);
+            this.logger.error("Error clearing localStorage", e instanceof Error ? e : String(e));
             return false;
         }
     }
@@ -105,7 +131,7 @@ export class LocalStorageAdapter implements IStorageAdapter {
             
             return true;
         } catch (e) {
-            console.error(`Error clearing localStorage with prefix: ${prefix}`, e);
+            this.logger.error(`Error clearing localStorage with prefix: ${prefix}`, e instanceof Error ? e : String(e));
             return false;
         }
     }

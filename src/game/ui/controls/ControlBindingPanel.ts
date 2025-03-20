@@ -5,6 +5,9 @@
 
 import { IControlCategory, IControlBinding } from "../../input/IControlsConfig";
 import { BindingRow } from "./BindingRow";
+import { EventListenerManager } from "../../../core/utils/EventListenerManager";
+import { ServiceLocator } from "../../../core/base/ServiceLocator";
+import { Logger } from "../../../core/utils/Logger";
 
 /**
  * Callback type for binding changes
@@ -21,20 +24,37 @@ export class ControlBindingPanel {
     private category: IControlCategory;
     private onBindingChange: BindingChangeCallback;
     private bindingRows: BindingRow[] = [];
+    private eventListenerManager: EventListenerManager;
+    private logger: Logger;
     
     /**
      * Creates a new binding panel
      * @param parent Parent element to attach to
      * @param category The control category to display
      * @param onBindingChange Callback for binding changes
+     * @param eventListenerManager Optional event listener manager
      */
     constructor(
         parent: HTMLElement, 
         category: IControlCategory,
-        onBindingChange: BindingChangeCallback
+        onBindingChange: BindingChangeCallback,
+        eventListenerManager?: EventListenerManager
     ) {
         this.category = category;
         this.onBindingChange = onBindingChange;
+        
+        // Initialize EventListenerManager and Logger
+        this.eventListenerManager = eventListenerManager || new EventListenerManager();
+        
+        // Get logger from ServiceLocator or create a new one
+        try {
+            const serviceLocator = ServiceLocator.getInstance();
+            this.logger = serviceLocator.has('logger') 
+                ? serviceLocator.get<Logger>('logger') 
+                : new Logger('ControlBindingPanel');
+        } catch (e) {
+            this.logger = new Logger('ControlBindingPanel');
+        }
         
         // Create container
         this.container = document.createElement('div');
@@ -49,70 +69,79 @@ export class ControlBindingPanel {
         // Create binding list
         this.bindingList = document.createElement('div');
         this.bindingList.className = 'binding-list';
+        this.container.appendChild(this.bindingList);
         
-        // Add rows for each binding
+        // Create binding rows
         for (const binding of category.bindings) {
-            // Skip non-rebindable controls
-            if (binding.canRebind === false) {
+            if (!binding.canRebind) {
                 this.createReadOnlyRow(binding);
-                continue;
+            } else {
+                this.createBindingRow(binding);
             }
-            
-            // Create interactive binding row
-            const row = new BindingRow(
-                this.bindingList,
-                binding,
-                (key: string) => this.onBindingChange(binding.action, key)
-            );
-            this.bindingRows.push(row);
         }
         
-        this.container.appendChild(this.bindingList);
+        // Add to parent
         parent.appendChild(this.container);
+        
+        this.logger.debug(`ControlBindingPanel created for category: ${category.name}`);
     }
     
     /**
-     * Creates a read-only row for non-rebindable controls
-     * @param binding The binding to display
+     * Creates a new binding row
+     */
+    private createBindingRow(binding: IControlBinding): void {
+        const row = new BindingRow(
+            this.bindingList, 
+            binding,
+            (key: string) => this.onBindingChange(binding.action, key),
+            this.eventListenerManager
+        );
+        
+        this.bindingRows.push(row);
+    }
+    
+    /**
+     * Creates a read-only row for bindings that can't be changed
      */
     private createReadOnlyRow(binding: IControlBinding): void {
-        const row = document.createElement('div');
-        row.className = 'binding-row readonly';
+        const container = document.createElement('div');
+        container.className = 'binding-row readonly';
         
         const label = document.createElement('div');
         label.className = 'binding-label';
         label.textContent = binding.displayName || binding.action;
-        row.appendChild(label);
+        container.appendChild(label);
         
         const keyDisplay = document.createElement('div');
         keyDisplay.className = 'binding-key';
         keyDisplay.textContent = this.formatKeyName(binding.key);
-        row.appendChild(keyDisplay);
+        container.appendChild(keyDisplay);
         
-        const lockIcon = document.createElement('div');
-        lockIcon.className = 'binding-lock';
-        lockIcon.innerHTML = '🔒'; // Lock icon
-        row.appendChild(lockIcon);
-        
-        this.bindingList.appendChild(row);
+        this.bindingList.appendChild(container);
     }
     
     /**
-     * Formats a key name for display
-     * @param key The key to format
-     * @returns Formatted key name
+     * Formats key names for display
      */
     private formatKeyName(key: string): string {
         // Format special keys
         switch (key) {
             case ' ':
                 return 'Space';
+            case 'ArrowUp':
+                return '↑';
+            case 'ArrowDown':
+                return '↓';
+            case 'ArrowLeft':
+                return '←';
+            case 'ArrowRight':
+                return '→';
             case 'MouseLeft':
-                return 'Left Mouse';
+                return 'Left Click';
             case 'MouseRight':
-                return 'Right Mouse';
+                return 'Right Click';
             case 'MouseMiddle':
-                return 'Middle Mouse';
+                return 'Middle Click';
             case 'MouseX':
                 return 'Mouse X-Axis';
             case 'MouseY':
@@ -125,13 +154,16 @@ export class ControlBindingPanel {
     /**
      * Cleans up resources
      */
-    public destroy(): void {
-        // Clean up binding rows
-        this.bindingRows.forEach(row => row.destroy());
+    public dispose(): void {
+        // Clean up all binding rows
+        this.bindingRows.forEach(row => row.dispose());
+        this.bindingRows = [];
         
         // Remove from DOM
         if (this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
         }
+        
+        this.logger.debug(`ControlBindingPanel disposed for category: ${this.category.name}`);
     }
 } 

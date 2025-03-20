@@ -15,6 +15,9 @@ import {
 } from './ISceneManager';
 import { SceneType, SceneFactory } from './SceneFactory';
 import { SceneTransitionManager } from './SceneTransitionManager';
+import { ResourceTracker, ResourceType } from '../utils/ResourceTracker';
+import { Logger } from '../utils/Logger';
+import { ServiceLocator } from '../base/ServiceLocator';
 
 export class SceneManager implements ISceneManager {
   private engine: BABYLON.Engine | null = null;
@@ -22,6 +25,34 @@ export class SceneManager implements ISceneManager {
   private scenes: Map<string, BABYLON.Scene> = new Map();
   private sceneFactory: SceneFactory | null = null;
   private transitionManager: SceneTransitionManager | null = null;
+  private resourceTracker: ResourceTracker;
+  private logger: Logger;
+
+  /**
+   * Initializes the SceneManager.
+   * @param resourceTracker Optional ResourceTracker instance to use for resource management
+   */
+  constructor(resourceTracker?: ResourceTracker) {
+    // Use provided resource tracker or create a new one
+    this.resourceTracker = resourceTracker || new ResourceTracker();
+    
+    // Initialize logger with default instance
+    this.logger = new Logger('SceneManager');
+    
+    // Try to get the logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add context tag
+        this.logger.addTag('SceneManager');
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to get logger from ServiceLocator: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    }
+    
+    this.logger.debug('SceneManager constructed');
+  }
 
   /**
    * Initializes the SceneManager with a Babylon.js engine.
@@ -34,8 +65,8 @@ export class SceneManager implements ISceneManager {
 
     // Create a default scene
     this.activeScene = this.createScene({
-      name: 'default',
-      setAsActive: true,
+      id: 'default',
+      makeActive: true,
     });
   }
 
@@ -95,6 +126,16 @@ export class SceneManager implements ISceneManager {
     scene.metadata = { ...scene.metadata, name: sceneName };
     this.scenes.set(sceneName, scene);
 
+    // Track the scene with ResourceTracker
+    this.resourceTracker.track(scene, {
+      type: ResourceType.OTHER, // Scenes don't have their own ResourceType
+      id: sceneName,
+      metadata: {
+        sceneName,
+        createdAt: Date.now(),
+      }
+    });
+
     // Set as active if requested
     if (internalOptions.setAsActive) {
       this.activeScene = scene;
@@ -115,6 +156,9 @@ export class SceneManager implements ISceneManager {
       const gravityVector = new BABYLON.Vector3(0, -9.81, 0);
       scene.enablePhysics(gravityVector, new BABYLON.CannonJSPlugin());
     }
+
+    // Log scene creation
+    this.logDebug(`Created scene "${sceneName}"`);
 
     return scene;
   }
@@ -234,19 +278,28 @@ export class SceneManager implements ISceneManager {
       return;
     }
 
+    // Get the scene name for resource tracking
+    const sceneName = sceneToDispose.metadata?.name;
+
     // Remove from render loop if it's the active scene
     if (sceneToDispose === this.activeScene && this.engine) {
       this.engine.stopRenderLoop();
       this.activeScene = null;
     }
 
-    // Remove from scene map
-    const sceneName = sceneToDispose.metadata?.name;
+    // Dispose resources associated with this scene
     if (sceneName) {
+      // Dispose all resources associated with this scene
+      this.resourceTracker.disposeByScene(sceneName);
+      
+      // Remove from scene map
       this.scenes.delete(sceneName);
+      
+      // Log disposal
+      this.logDebug(`Disposed scene "${sceneName}"`);
     }
 
-    // Dispose the scene
+    // Dispose the scene itself
     sceneToDispose.dispose();
   }
 
@@ -258,6 +311,12 @@ export class SceneManager implements ISceneManager {
       this.engine.stopRenderLoop();
     }
 
+    // Log the disposal of all scenes
+    this.logDebug(`Disposing all scenes (${this.scenes.size} total)`);
+
+    // Dispose all resources first
+    this.resourceTracker.disposeAll();
+
     // Dispose all scenes
     this.scenes.forEach(scene => {
       scene.dispose();
@@ -266,5 +325,49 @@ export class SceneManager implements ISceneManager {
     // Clear collections
     this.scenes.clear();
     this.activeScene = null;
+  }
+  
+  /**
+   * Track a resource associated with a scene
+   * @param resource The resource to track
+   * @param type The type of resource
+   * @param sceneName The name of the scene this resource belongs to
+   * @param id Optional custom identifier for the resource
+   * @returns The resource ID
+   */
+  public trackResource(resource: any, type: ResourceType, sceneName: string, id?: string): string {
+    return this.resourceTracker.track(resource, {
+      type,
+      id,
+      sceneId: sceneName,
+      metadata: {
+        sceneName,
+        trackedBy: 'SceneManager'
+      }
+    });
+  }
+  
+  /**
+   * Log a debug message
+   * @param message The message to log
+   */
+  private logDebug(message: string): void {
+    this.logger.debug(message);
+  }
+  
+  /**
+   * Log a warning message
+   * @param message The message to log
+   */
+  private logWarning(message: string): void {
+    this.logger.warn(message);
+  }
+  
+  /**
+   * Log an error message
+   * @param message The message to log
+   */
+  private logError(message: string): void {
+    this.logger.error(message);
   }
 }

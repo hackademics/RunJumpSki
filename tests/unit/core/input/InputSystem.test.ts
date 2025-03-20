@@ -32,7 +32,7 @@ describe('InputSystem', () => {
   });
 
   afterEach(() => {
-    inputSystem.destroy();
+    inputSystem.dispose();
     jest.restoreAllMocks();
   });
 
@@ -66,3 +66,4 @@ describe('InputSystem', () => {
     consoleSpy.mockRestore();
   });
 });
+

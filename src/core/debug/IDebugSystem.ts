@@ -20,7 +20,7 @@ export interface IDebugSystem {
     /**
      * Destroys the debug system and cleans up resources.
      */
-    destroy(): void;
+    dispose(): void;
   
     /**
      * Toggle the visibility of the performance display

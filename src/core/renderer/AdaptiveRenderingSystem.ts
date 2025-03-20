@@ -10,6 +10,8 @@ import { TerrainQuality } from './terrain/TerrainRenderer';
 import { ITerrainRenderer } from './terrain/ITerrainRenderer';
 import { IParticleSystemManager } from './particles/IParticleSystemManager';
 import { IPostProcessingManager } from './effects/IPostProcessingManager';
+import { Logger } from '../utils/Logger';
+import { ServiceLocator } from '../base/ServiceLocator';
 
 /**
  * Performance thresholds for automatic quality adjustments
@@ -211,6 +213,8 @@ export class AdaptiveRenderingSystem {
   /** Custom callback for quality changes */
   private onQualityChangeCallback?: (newLevel: QualityLevel, oldLevel: QualityLevel) => void;
 
+  private logger: Logger;
+
   /**
    * Creates a new adaptive rendering system
    * @param scene The scene to manage
@@ -225,6 +229,21 @@ export class AdaptiveRenderingSystem {
     this.scene = scene;
     this.metricsManager = metricsManager;
     this.config = { ...DEFAULT_ADAPTIVE_RENDERING_CONFIG, ...config };
+    
+    // Initialize logger
+    this.logger = new Logger('AdaptiveRenderingSystem');
+    
+    // Try to get logger from ServiceLocator if available
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add context tag
+        this.logger.addTag('AdaptiveRenderingSystem');
+      }
+    } catch (e) {
+      // If service locator is not available, we'll use the default logger
+    }
   }
 
   /**
@@ -315,10 +334,8 @@ export class AdaptiveRenderingSystem {
     this.currentQualityLevel--;
     this.applyCurrentQualitySettings();
     
-    // Notify about quality change
-    if (this.config.showQualityChangeNotifications) {
-      console.log(`[AdaptiveRendering] Decreased quality to ${QualityLevel[this.currentQualityLevel]}`);
-    }
+    // Log quality change
+    this.logger.info(`Decreased quality to ${QualityLevel[this.currentQualityLevel]}`);
     
     // Call quality change callback if set
     if (this.onQualityChangeCallback) {
@@ -344,10 +361,8 @@ export class AdaptiveRenderingSystem {
     this.currentQualityLevel++;
     this.applyCurrentQualitySettings();
     
-    // Notify about quality change
-    if (this.config.showQualityChangeNotifications) {
-      console.log(`[AdaptiveRendering] Increased quality to ${QualityLevel[this.currentQualityLevel]}`);
-    }
+    // Log quality change
+    this.logger.info(`Increased quality to ${QualityLevel[this.currentQualityLevel]}`);
     
     // Call quality change callback if set
     if (this.onQualityChangeCallback) {
@@ -407,7 +422,8 @@ export class AdaptiveRenderingSystem {
   private setParticleSystemQuality(multiplier: number): void {
     // This would need to be implemented in the particle system manager
     // For now, we can just log it
-    console.log(`[AdaptiveRendering] Set particle quality multiplier to ${multiplier}`);
+    // Log quality change
+    this.logger.info(`Set particle quality multiplier to ${multiplier}`);
   }
 
   /**
@@ -478,10 +494,8 @@ export class AdaptiveRenderingSystem {
     this.currentQualityLevel = level;
     this.applyCurrentQualitySettings();
     
-    // Notify about quality change
-    if (this.config.showQualityChangeNotifications) {
-      console.log(`[AdaptiveRendering] Manually set quality to ${QualityLevel[this.currentQualityLevel]}`);
-    }
+    // Log quality change
+    this.logger.info(`Manually set quality to ${QualityLevel[this.currentQualityLevel]}`);
     
     // Call quality change callback if set
     if (this.onQualityChangeCallback) {

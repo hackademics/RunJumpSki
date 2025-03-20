@@ -9,6 +9,7 @@ import {
   SceneTransitionType,
   SceneTransitionOptions,
 } from '../../../../src/core/renderer/ISceneManager';
+import { ISceneTransitionManagerPrivate } from './TestSceneTransitionManagerTypes';
 
 // Mock BabylonJS
 jest.mock('babylonjs');
@@ -26,6 +27,8 @@ describe('SceneTransitionManager', () => {
 
   // Test object
   let transitionManager: SceneTransitionManager;
+  // Typed access to private members
+  let transitionManagerPrivate: ISceneTransitionManagerPrivate;
 
   // Animation callback for tests
   let animationCompletedCallback: () => void;
@@ -134,6 +137,8 @@ describe('SceneTransitionManager', () => {
 
     // Create transition manager
     transitionManager = new SceneTransitionManager(mockEngine);
+    // Set up typed access to private members
+    transitionManagerPrivate = transitionManager as unknown as ISceneTransitionManagerPrivate;
   });
 
   afterEach(() => {
@@ -142,8 +147,8 @@ describe('SceneTransitionManager', () => {
 
   describe('transition', () => {
     it('should reject if a transition is already in progress', async () => {
-      // Set internal isTransitioning flag to true
-      (transitionManager as unknown as Record<string, boolean>).isTransitioning = true;
+      // Use the typed private member
+      transitionManagerPrivate.isTransitioning = true;
 
       const options: SceneTransitionOptions = {
         type: SceneTransitionType.FADE,
@@ -195,7 +200,7 @@ describe('SceneTransitionManager', () => {
     it('should clean up transition resources after completion', async () => {
       // Spy on private cleanupTransitionResources method
       const cleanupSpy = jest.spyOn(
-        transitionManager as unknown as Record<string, any>,
+        transitionManagerPrivate,
         'cleanupTransitionResources'
       );
 
@@ -213,7 +218,7 @@ describe('SceneTransitionManager', () => {
     it('should set up fade transition with correct animation parameters', async () => {
       // Spy on private methods
       const captureSpy = jest
-        .spyOn(transitionManager as unknown as Record<string, any>, 'captureSceneToTexture')
+        .spyOn(transitionManagerPrivate, 'captureSceneToTexture')
         .mockReturnValue(mockRenderTargetTexture);
 
       const options: SceneTransitionOptions = {
@@ -273,7 +278,7 @@ describe('SceneTransitionManager', () => {
     it('should set up slide transition with correct animation parameters', async () => {
       // Spy on private captureSceneToTexture method
       const captureSpy = jest
-        .spyOn(transitionManager as unknown as Record<string, any>, 'captureSceneToTexture')
+        .spyOn(transitionManagerPrivate, 'captureSceneToTexture')
         .mockReturnValue(mockRenderTargetTexture);
 
       const options: SceneTransitionOptions = {
@@ -304,7 +309,7 @@ describe('SceneTransitionManager', () => {
     it('should set up dissolve transition with correct shader materials', async () => {
       // Spy on private captureSceneToTexture method
       const captureSpy = jest
-        .spyOn(transitionManager as unknown as Record<string, any>, 'captureSceneToTexture')
+        .spyOn(transitionManagerPrivate, 'captureSceneToTexture')
         .mockReturnValue(mockRenderTargetTexture);
 
       const options: SceneTransitionOptions = {
@@ -342,7 +347,7 @@ describe('SceneTransitionManager', () => {
     it('should set up zoom transition with correct animation parameters', async () => {
       // Spy on private captureSceneToTexture method
       const captureSpy = jest
-        .spyOn(transitionManager as unknown as Record<string, any>, 'captureSceneToTexture')
+        .spyOn(transitionManagerPrivate, 'captureSceneToTexture')
         .mockReturnValue(mockRenderTargetTexture);
 
       const options: SceneTransitionOptions = {
@@ -372,12 +377,13 @@ describe('SceneTransitionManager', () => {
   describe('captureSceneToTexture', () => {
     it('should create a render target texture with the scene dimensions', () => {
       // Call the private method directly
-      (transitionManager as unknown as Record<string, any>).captureSceneToTexture(mockFromScene);
+      transitionManagerPrivate.captureSceneToTexture(mockFromScene);
 
       // Verify RenderTargetTexture was created with correct dimensions
       expect(BABYLON.RenderTargetTexture).toHaveBeenCalledWith(
         expect.any(String),
         expect.any(Number),
+        expect.any(Object),
         expect.objectContaining({
           renderList: expect.any(Array),
         })
@@ -388,13 +394,12 @@ describe('SceneTransitionManager', () => {
   describe('cleanupTransitionResources', () => {
     it('should dispose all transition resources', () => {
       // Set up resources to be cleaned
-      (transitionManager as unknown as Record<string, any>).transitionTexture =
-        mockRenderTargetTexture;
-      (transitionManager as unknown as Record<string, any>).transitionMaterial = mockMaterial;
-      (transitionManager as unknown as Record<string, any>).transitionPlane = mockPlane;
+      transitionManagerPrivate.transitionTexture = mockRenderTargetTexture;
+      transitionManagerPrivate.transitionMaterial = mockMaterial;
+      transitionManagerPrivate.transitionPlane = mockPlane;
 
       // Call the private method directly
-      (transitionManager as unknown as Record<string, any>).cleanupTransitionResources();
+      transitionManagerPrivate.cleanupTransitionResources();
 
       // Verify resources were disposed
       expect(mockRenderTargetTexture.dispose).toHaveBeenCalled();
@@ -402,9 +407,9 @@ describe('SceneTransitionManager', () => {
       expect(mockPlane.dispose).toHaveBeenCalled();
 
       // Verify references were cleared
-      expect((transitionManager as unknown as Record<string, any>).transitionTexture).toBeNull();
-      expect((transitionManager as unknown as Record<string, any>).transitionMaterial).toBeNull();
-      expect((transitionManager as unknown as Record<string, any>).transitionPlane).toBeNull();
+      expect(transitionManagerPrivate.transitionTexture).toBeNull();
+      expect(transitionManagerPrivate.transitionMaterial).toBeNull();
+      expect(transitionManagerPrivate.transitionPlane).toBeNull();
     });
   });
 });

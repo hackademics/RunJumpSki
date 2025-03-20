@@ -1,5 +1,5 @@
 import { System } from '../base/System';
-import { ILogger, LogLevel } from './ILogger';
+import { ILogger, LogLevel, LogParam } from './ILogger';
 import { Logger } from './Logger';
 
 /**
@@ -69,7 +69,7 @@ export class LoggingSystem extends System implements ILogger {
    * @param message Message to log
    * @param args Additional arguments
    */
-  public trace(message: string, ...args: any[]): void {
+  public trace(message: string, ...args: LogParam[]): void {
     this.logger.trace(message, ...args);
   }
   
@@ -78,7 +78,7 @@ export class LoggingSystem extends System implements ILogger {
    * @param message Message to log
    * @param args Additional arguments
    */
-  public debug(message: string, ...args: any[]): void {
+  public debug(message: string, ...args: LogParam[]): void {
     this.logger.debug(message, ...args);
   }
   
@@ -87,7 +87,7 @@ export class LoggingSystem extends System implements ILogger {
    * @param message Message to log
    * @param args Additional arguments
    */
-  public info(message: string, ...args: any[]): void {
+  public info(message: string, ...args: LogParam[]): void {
     this.logger.info(message, ...args);
   }
   
@@ -96,7 +96,7 @@ export class LoggingSystem extends System implements ILogger {
    * @param message Message to log
    * @param args Additional arguments
    */
-  public warn(message: string, ...args: any[]): void {
+  public warn(message: string, ...args: LogParam[]): void {
     this.logger.warn(message, ...args);
   }
   
@@ -105,7 +105,7 @@ export class LoggingSystem extends System implements ILogger {
    * @param message Message to log
    * @param args Additional arguments
    */
-  public error(message: string, ...args: any[]): void {
+  public error(message: string, ...args: LogParam[]): void {
     this.logger.error(message, ...args);
   }
   
@@ -114,7 +114,7 @@ export class LoggingSystem extends System implements ILogger {
    * @param message Message to log
    * @param args Additional arguments
    */
-  public fatal(message: string, ...args: any[]): void {
+  public fatal(message: string, ...args: LogParam[]): void {
     this.logger.fatal(message, ...args);
   }
 

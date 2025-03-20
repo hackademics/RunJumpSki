@@ -755,7 +755,7 @@ export class CollisionManager implements ICollisionManager {
     
     // Dispose the collision system
     if (this.collisionSystem) {
-      this.collisionSystem.destroy();
+      this.collisionSystem.dispose();
       this.collisionSystem = null;
     }
     
@@ -764,3 +764,4 @@ export class CollisionManager implements ICollisionManager {
     console.log("CollisionManager disposed");
   }
 }
+

@@ -72,7 +72,7 @@ export class Entity implements IEntity {
 
     try {
       // Initialize the component
-      component.init(this);
+      component.initialize(this);
       
       this.logger.debug(`Added component: ${component.type}`);
       return component;

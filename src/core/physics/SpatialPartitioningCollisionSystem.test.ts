@@ -19,25 +19,26 @@ class MockPhysicsSystem implements Partial<IPhysicsSystem> {
   }
   
   public initialize(): void {}
-  public update(): void {}
+  public update(deltaTime: number): void {}
   public getScene(): BABYLON.Scene { return this.scene; }
-  public createImpostor(): BABYLON.PhysicsImpostor { return {} as BABYLON.PhysicsImpostor; }
-  public removeImpostor(): void {}
-  public setGravity(): void {}
+  public createImpostor(mesh: BABYLON.AbstractMesh, type: number, options: any): BABYLON.PhysicsImpostor { 
+    return {} as BABYLON.PhysicsImpostor; 
+  }
+  public removeImpostor(impostor: BABYLON.PhysicsImpostor): void {}
+  public setGravity(gravity: BABYLON.Vector3): void {}
   public getGravity(): BABYLON.Vector3 { return new BABYLON.Vector3(0, -9.8, 0); }
-  public raycast(): BABYLON.PhysicsRaycastResult | null { return null; }
+  public raycast(from: BABYLON.Vector3, to: BABYLON.Vector3): BABYLON.PhysicsRaycastResult | null { return null; }
   public dispose(): void {}
 
   // The following methods are missing in our implementation but required by IPhysicsSystem
-  public destroy(): void {}
-  public getPhysicsEngine(): BABYLON.IPhysicsEngine { return null as unknown as BABYLON.IPhysicsEngine; }
+  public getPhysicsEngine(): BABYLON.PhysicsEngine { return null as unknown as BABYLON.PhysicsEngine; }
   public getDefaultFriction(): number { return 0.5; }
-  public setDefaultFriction(): void {}
+  public setDefaultFriction(friction: number): void {}
   public getDefaultRestitution(): number { return 0.5; }
-  public setDefaultRestitution(): void {}
-  public setTimeStep(): void {}
+  public setDefaultRestitution(restitution: number): void {}
+  public setTimeStep(timeStep: number): void {}
   public getTimeStep(): number { return 1/60; }
-  public setMaxSteps(): void {}
+  public setMaxSteps(maxSteps: number): void {}
   public getMaxSteps(): number { return 5; }
 }
 
@@ -82,7 +83,7 @@ describe('SpatialPartitioningCollisionSystem', () => {
   });
   
   afterEach(() => {
-    collisionSystem.destroy();
+    collisionSystem.dispose();
     scene.dispose();
   });
   

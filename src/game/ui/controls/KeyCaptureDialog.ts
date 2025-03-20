@@ -4,6 +4,9 @@
  */
 
 import { ControlsUIManager } from "./ControlsUIManager";
+import { EventListenerManager } from "../../../core/utils/EventListenerManager";
+import { ServiceLocator } from "../../../core/base/ServiceLocator";
+import { Logger } from "../../../core/utils/Logger";
 
 /**
  * Modal dialog for capturing key input
@@ -22,14 +25,34 @@ export class KeyCaptureDialog {
     private mouseDownHandler: (e: MouseEvent) => void;
     private active: boolean = false;
     private handleCancelClick: () => void;
+    private eventListenerManager: EventListenerManager;
+    private logger: Logger;
     
     /**
      * Creates a new key capture dialog
      * @param parent Parent element to attach to
      * @param uiManager Controls UI manager
+     * @param eventListenerManager Optional event listener manager
      */
-    constructor(parent: HTMLElement, uiManager: ControlsUIManager) {
+    constructor(
+        parent: HTMLElement, 
+        uiManager: ControlsUIManager,
+        eventListenerManager?: EventListenerManager
+    ) {
         this.uiManager = uiManager;
+        
+        // Initialize EventListenerManager and Logger
+        this.eventListenerManager = eventListenerManager || new EventListenerManager();
+        
+        // Get logger from ServiceLocator or create a new one
+        try {
+            const serviceLocator = ServiceLocator.getInstance();
+            this.logger = serviceLocator.has('logger') 
+                ? serviceLocator.get<Logger>('logger') 
+                : new Logger('KeyCaptureDialog');
+        } catch (e) {
+            this.logger = new Logger('KeyCaptureDialog');
+        }
         
         // Create overlay
         this.overlay = document.createElement('div');
@@ -54,7 +77,16 @@ export class KeyCaptureDialog {
         this.cancelButton = document.createElement('button');
         this.cancelButton.textContent = 'Cancel';
         this.handleCancelClick = () => this.hide();
-        this.cancelButton.addEventListener('click', this.handleCancelClick);
+        
+        // Use EventListenerManager for button click
+        this.eventListenerManager.addDOMListener(
+            this.cancelButton,
+            'click',
+            this.handleCancelClick as EventListener,
+            undefined,
+            'keyCaptureDialog'
+        );
+        
         this.dialog.appendChild(this.cancelButton);
         
         // Add dialog to overlay
@@ -74,6 +106,8 @@ export class KeyCaptureDialog {
         
         // Initially hide
         this.hide();
+        
+        this.logger.debug('KeyCaptureDialog created');
     }
     
     /**
@@ -94,9 +128,24 @@ export class KeyCaptureDialog {
         this.message.textContent = 'Press any key to bind to this action...';
         this.container.style.display = 'block';
         
-        // Add event listeners
-        document.addEventListener('keydown', this.keyDownHandler);
-        document.addEventListener('mousedown', this.mouseDownHandler);
+        // Add event listeners using EventListenerManager
+        this.eventListenerManager.addDOMListener(
+            document,
+            'keydown',
+            this.keyDownHandler as EventListener,
+            undefined,
+            'keyCaptureDialog'
+        );
+        
+        this.eventListenerManager.addDOMListener(
+            document,
+            'mousedown',
+            this.mouseDownHandler as EventListener,
+            undefined,
+            'keyCaptureDialog'
+        );
+        
+        this.logger.debug(`KeyCaptureDialog shown for action: ${action}`);
         
         // Set timeout to automatically cancel after 10 seconds
         setTimeout(() => {
@@ -120,26 +169,29 @@ export class KeyCaptureDialog {
         // Update UI
         this.container.style.display = 'none';
         
-        // Remove event listeners
-        document.removeEventListener('keydown', this.keyDownHandler);
-        document.removeEventListener('mousedown', this.mouseDownHandler);
+        // Remove event listeners using EventListenerManager
+        this.eventListenerManager.removeListenersByGroup('keyCaptureDialog');
+        
+        this.logger.debug('KeyCaptureDialog hidden');
     }
     
     /**
      * Handles key down events
      * @param e Key event
      */
-    private handleKeyDown(e: KeyboardEvent): void {
+    private handleKeyDown(e: Event): void {
+        const keyEvent = e as KeyboardEvent;
+        
         if (!this.active || !this.currentAction) {
             return;
         }
         
         // Prevent default action
-        e.preventDefault();
-        e.stopPropagation();
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
         
         // Get key name
-        const key = e.key;
+        const key = keyEvent.key;
         
         // Ignore modifier keys and escape (used for cancel)
         if (
@@ -160,23 +212,25 @@ export class KeyCaptureDialog {
      * Handles mouse down events
      * @param e Mouse event
      */
-    private handleMouseDown(e: MouseEvent): void {
+    private handleMouseDown(e: Event): void {
+        const mouseEvent = e as MouseEvent;
+        
         if (!this.active || !this.currentAction) {
             return;
         }
         
         // Ignore clicks on the dialog itself
-        if (this.dialog.contains(e.target as Node)) {
+        if (this.dialog.contains(mouseEvent.target as Node)) {
             return;
         }
         
         // Prevent default action
-        e.preventDefault();
-        e.stopPropagation();
+        mouseEvent.preventDefault();
+        mouseEvent.stopPropagation();
         
         // Map mouse buttons to key names
         let key = '';
-        switch (e.button) {
+        switch (mouseEvent.button) {
             case 0:
                 key = 'MouseLeft';
                 break;
@@ -205,28 +259,32 @@ export class KeyCaptureDialog {
         
         // Check if successful
         if (this.uiManager.updateBinding(this.currentAction, key)) {
+            this.logger.debug(`Binding updated for ${this.currentAction}: ${key}`);
             this.hide();
         } else {
             // Show error message
             this.message.textContent = 'This key is already in use. Try another key...';
+            this.logger.warn(`Failed to update binding for ${this.currentAction} with key ${key}: already in use`);
         }
     }
     
     /**
      * Cleans up resources
      */
-    public destroy(): void {
+    public dispose(): void {
         // Hide if active
         if (this.active) {
             this.hide();
         }
         
-        // Remove event listeners - use proper reference to the event handler instead of an inline function
-        this.cancelButton.removeEventListener('click', this.handleCancelClick);
+        // Remove all event listeners
+        this.eventListenerManager.removeListenersByGroup('keyCaptureDialog');
         
         // Remove from DOM
         if (this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
         }
+        
+        this.logger.debug('KeyCaptureDialog disposed');
     }
 } 

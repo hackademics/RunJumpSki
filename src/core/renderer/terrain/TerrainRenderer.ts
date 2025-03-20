@@ -7,6 +7,9 @@
  */
 import * as BABYLON from 'babylonjs';
 import { ITerrainRenderer } from './ITerrainRenderer';
+import { ResourceTracker, ResourceType } from '../../utils/ResourceTracker';
+import { Logger } from '../../utils/Logger';
+import { ServiceLocator } from '../../base/ServiceLocator';
 
 /**
  * Terrain rendering quality settings
@@ -135,20 +138,38 @@ export class TerrainRenderer implements ITerrainRenderer {
   private lastCameraPosition: BABYLON.Vector3 = new BABYLON.Vector3();
   private lodSwitchMargin: number = 10; // Hysteresis to prevent LOD flickering
   private wireframeMaterial: BABYLON.Material | null = null;
+  private resourceTracker: ResourceTracker;
+  private logger: Logger | null = null;
+  private resourceGroup: string = 'terrain';
 
   /**
    * Create a new terrain renderer
    * @param scene The scene to render terrain in
    * @param camera The primary camera for LOD calculations
    * @param config Optional configuration settings
+   * @param resourceTracker Optional resource tracker
    */
   constructor(
     scene: BABYLON.Scene,
     camera: BABYLON.Camera,
-    config: Partial<TerrainRenderConfig> = {}
+    config: Partial<TerrainRenderConfig> = {},
+    resourceTracker?: ResourceTracker
   ) {
     this.scene = scene;
     this.camera = camera;
+    
+    // Set up resource tracking
+    this.resourceTracker = resourceTracker || new ResourceTracker();
+    
+    // Try to get the logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+      }
+    } catch (e) {
+      console.warn('Logger not available for TerrainRenderer');
+    }
     
     // Merge with default config
     const qualityPreset = config.quality || DEFAULT_TERRAIN_CONFIG.quality;
@@ -160,6 +181,7 @@ export class TerrainRenderer implements ITerrainRenderer {
     
     // Create root node for all terrain chunks
     this.terrainRootNode = new BABYLON.TransformNode('terrainRoot', this.scene);
+    this.trackResource(this.terrainRootNode, ResourceType.MESH, 'terrainRootNode');
     
     // Create default terrain material
     this.material = this.createDefaultMaterial();
@@ -168,6 +190,8 @@ export class TerrainRenderer implements ITerrainRenderer {
     if (this.config.wireframe) {
       this.wireframeMaterial = this.createWireframeMaterial();
     }
+    
+    this.logDebug('TerrainRenderer created');
   }
   
   /**
@@ -248,6 +272,9 @@ export class TerrainRenderer implements ITerrainRenderer {
       // material.parallaxScaleBias = 0.1;
     }
     
+    // Track the material
+    this.trackResource(material, ResourceType.MATERIAL, 'terrainMaterial');
+    
     return material;
   }
   
@@ -256,11 +283,15 @@ export class TerrainRenderer implements ITerrainRenderer {
    * @returns The created wireframe material
    */
   private createWireframeMaterial(): BABYLON.Material {
-    const wireframe = new BABYLON.StandardMaterial('terrainWireframe', this.scene);
-    wireframe.wireframe = true;
-    wireframe.emissiveColor = new BABYLON.Color3(0, 1, 1);
-    wireframe.alpha = 0.5;
-    return wireframe;
+    const wireframeMaterial = new BABYLON.StandardMaterial('terrainWireframe', this.scene);
+    wireframeMaterial.wireframe = true;
+    wireframeMaterial.diffuseColor = new BABYLON.Color3(0, 1, 0);
+    wireframeMaterial.emissiveColor = new BABYLON.Color3(0, 0.5, 0);
+    
+    // Track the material
+    this.trackResource(wireframeMaterial, ResourceType.MATERIAL, 'terrainWireframeMaterial');
+    
+    return wireframeMaterial;
   }
   
   /**
@@ -310,6 +341,23 @@ export class TerrainRenderer implements ITerrainRenderer {
     
     // Generate mesh data at highest LOD initially
     await this.generateChunkGeometry(mesh, 0);
+    
+    // Track the mesh
+    this.trackResource(mesh, ResourceType.MESH, `terrain_chunk_${id}`);
+    
+    // If wireframe debugging is enabled, create a wireframe representation
+    if (this.config.wireframe && this.wireframeMaterial) {
+      const wireframe = mesh.clone(`terrain_chunk_${id}_wireframe`);
+      wireframe.material = this.wireframeMaterial;
+      wireframe.position = mesh.position.clone();
+      wireframe.parent = this.terrainRootNode;
+      
+      // Store reference to wireframe in mesh metadata
+      mesh.metadata = { wireframe };
+      
+      // Track the wireframe mesh
+      this.trackResource(wireframe, ResourceType.MESH, `terrain_chunk_${id}_wireframe`);
+    }
     
     // Create and store chunk data
     const chunk: TerrainChunk = {
@@ -429,24 +477,6 @@ export class TerrainRenderer implements ITerrainRenderer {
     // Update bounding info
     mesh.refreshBoundingInfo();
     
-    // If wireframe is enabled, create overlay
-    if (this.config.wireframe && this.wireframeMaterial) {
-      // Clone the mesh for wireframe
-      if (mesh.metadata?.wireframe) {
-        // Dispose existing wireframe if it exists
-        (mesh.metadata.wireframe as BABYLON.Mesh).dispose();
-      }
-      
-      const wireframeMesh = mesh.clone(`${mesh.name}_wireframe`);
-      wireframeMesh.material = this.wireframeMaterial;
-      wireframeMesh.position = BABYLON.Vector3.Zero();
-      wireframeMesh.parent = mesh;
-      
-      // Store reference to wireframe mesh
-      if (!mesh.metadata) mesh.metadata = {};
-      mesh.metadata.wireframe = wireframeMesh;
-    }
-    
     return Promise.resolve();
   }
   
@@ -454,29 +484,29 @@ export class TerrainRenderer implements ITerrainRenderer {
    * Setup the update observer for LOD management
    */
   private setupUpdateObserver(): void {
-    // Remove any existing observer
+    // Remove existing observer if any
     if (this.updateObserver) {
       this.scene.onBeforeRenderObservable.remove(this.updateObserver);
     }
     
-    // Create a new observer
+    // Add new observer
     this.updateObserver = this.scene.onBeforeRenderObservable.add(() => {
-      if (!this.isInitialized || this.config.freeze) {
-        return;
+      if (!this.config.freeze) {
+        this.updateChunks();
       }
-      
-      // Only update LOD if camera has moved significantly
-      const cameraPos = this.camera.position;
-      if (BABYLON.Vector3.Distance(cameraPos, this.lastCameraPosition) < 1) {
-        return;
-      }
-      
-      // Update camera position
-      this.lastCameraPosition.copyFrom(cameraPos);
-      
-      // Update chunks based on camera position
-      this.updateChunks();
     });
+    
+    // Track the event listener
+    if (this.updateObserver) {
+      this.trackResource({
+        dispose: () => {
+          if (this.updateObserver) {
+            this.scene.onBeforeRenderObservable.remove(this.updateObserver);
+            this.updateObserver = null;
+          }
+        }
+      }, ResourceType.EVENT_LISTENER, 'terrainUpdateObserver');
+    }
   }
   
   /**
@@ -728,42 +758,77 @@ export class TerrainRenderer implements ITerrainRenderer {
    * Release all resources
    */
   public dispose(): void {
-    // Remove observer
-    if (this.updateObserver) {
-      this.scene.onBeforeRenderObservable.remove(this.updateObserver);
-      this.updateObserver = null;
-    }
+    this.logDebug('Disposing TerrainRenderer');
     
-    // Dispose all chunks
-    for (const chunk of this.chunks.values()) {
-      if (chunk.mesh.metadata?.wireframe) {
-        (chunk.mesh.metadata.wireframe as BABYLON.Mesh).dispose();
-      }
-      chunk.mesh.dispose();
-    }
+    // Dispose all tracked resources by group
+    const disposedCount = this.resourceTracker.disposeByGroup(this.resourceGroup);
+    this.logDebug(`Disposed ${disposedCount} terrain resources`);
     
     // Clear collections
     this.chunks.clear();
     this.activeChunks.clear();
     
-    // Dispose materials
-    if (this.material) {
-      this.material.dispose();
-    }
-    
-    if (this.wireframeMaterial) {
-      this.wireframeMaterial.dispose();
-      this.wireframeMaterial = null;
-    }
-    
-    // Dispose root node
-    this.terrainRootNode.dispose();
-    
     // Reset state
     this.isInitialized = false;
     this.heightData = null;
+    this.updateObserver = null;
+    this.material = null as any;
+    this.wireframeMaterial = null;
   }
   
+  /**
+   * Track a resource with the ResourceTracker
+   * @param resource The resource to track
+   * @param type The type of resource
+   * @param id Optional identifier for the resource
+   * @returns The resource tracking ID
+   */
+  private trackResource(resource: any, type: ResourceType, id?: string): string {
+    return this.resourceTracker.track(resource, {
+      type,
+      id,
+      group: this.resourceGroup,
+      metadata: {
+        createdBy: 'TerrainRenderer',
+        createdAt: Date.now()
+      }
+    });
+  }
+  
+  /**
+   * Log a debug message
+   * @param message The message to log
+   */
+  private logDebug(message: string): void {
+    if (this.logger) {
+      this.logger.debug(`[TerrainRenderer] ${message}`);
+    }
+  }
+  
+  /**
+   * Log a warning message
+   * @param message The message to log
+   */
+  private logWarning(message: string): void {
+    if (this.logger) {
+      this.logger.warn(`[TerrainRenderer] ${message}`);
+    } else {
+      console.warn(`[TerrainRenderer] ${message}`);
+    }
+  }
+  
+  /**
+   * Log an error message
+   * @param message The message to log
+   */
+  private logError(message: string): void {
+    if (this.logger) {
+      this.logger.error(`[TerrainRenderer] ${message}`);
+    } else {
+      console.error(`[TerrainRenderer] ${message}`);
+    }
+  }
+
   /**
    * Get performance statistics
    * @returns Object with performance metrics
@@ -800,5 +865,120 @@ export class TerrainRenderer implements ITerrainRenderer {
       terrainSize: this.terrainSize,
       quality: this.config.quality
     };
+  }
+  
+  /**
+   * Set the terrain rendering quality
+   * @param quality The quality level to set
+   */
+  public setQuality(quality: TerrainQuality): void {
+    this.config.quality = quality;
+    this.updateConfig({ quality });
+  }
+  
+  /**
+   * Set the view distance for terrain rendering
+   * @param distance View distance in world units
+   */
+  public setViewDistance(distance: number): void {
+    this.config.viewDistance = distance;
+    this.updateConfig({ viewDistance: distance });
+  }
+  
+  /**
+   * Get the default view distance for terrain rendering
+   * @returns Default view distance in world units
+   */
+  public getDefaultViewDistance(): number {
+    return DEFAULT_TERRAIN_CONFIG.viewDistance;
+  }
+  
+  /**
+   * Set whether to render terrain in wireframe mode
+   * @param enabled Whether wireframe mode should be enabled
+   */
+  public setWireframe(enabled: boolean): void {
+    this.config.wireframe = enabled;
+    this.updateConfig({ wireframe: enabled });
+  }
+  
+  /**
+   * Check if wireframe mode is enabled
+   * @returns Whether wireframe mode is currently enabled
+   */
+  public isWireframe(): boolean {
+    return this.config.wireframe;
+  }
+  
+  /**
+   * Get the height at the specified x, z coordinates
+   * @param x X coordinate in world space
+   * @param z Z coordinate in world space
+   * @returns Height at the specified coordinates
+   */
+  public getHeightAt(x: number, z: number): number {
+    const position = new BABYLON.Vector3(x, 0, z);
+    return this.getHeightAtPosition(position) || 0;
+  }
+  
+  /**
+   * Get the surface normal at the specified x, z coordinates
+   * @param x X coordinate in world space
+   * @param z Z coordinate in world space
+   * @returns Normal vector at the specified coordinates
+   */
+  public getNormalAt(x: number, z: number): BABYLON.Vector3 {
+    // Calculate normal using height differences at nearby points
+    const heightCenter = this.getHeightAt(x, z);
+    const heightLeft = this.getHeightAt(x - 1, z);
+    const heightRight = this.getHeightAt(x + 1, z);
+    const heightUp = this.getHeightAt(x, z - 1);
+    const heightDown = this.getHeightAt(x, z + 1);
+    
+    // Create tangent vectors
+    const tangentX = new BABYLON.Vector3(2, heightRight - heightLeft, 0).normalize();
+    const tangentZ = new BABYLON.Vector3(0, heightDown - heightUp, 2).normalize();
+    
+    // Calculate normal as cross product of tangents
+    const normal = BABYLON.Vector3.Cross(tangentZ, tangentX).normalize();
+    
+    return normal;
+  }
+  
+  /**
+   * Get the slope at the specified x, z coordinates
+   * @param x X coordinate in world space
+   * @param z Z coordinate in world space
+   * @returns Slope in radians at the specified coordinates
+   */
+  public getSlopeAt(x: number, z: number): number {
+    const normal = this.getNormalAt(x, z);
+    const up = new BABYLON.Vector3(0, 1, 0);
+    
+    // Calculate angle between normal and up vector
+    const angle = Math.acos(BABYLON.Vector3.Dot(normal, up));
+    
+    return angle;
+  }
+  
+  /**
+   * Create the terrain geometry and materials
+   */
+  public createTerrain(): void {
+    if (this.heightData && this.heightmapSize.x > 0 && this.heightmapSize.y > 0) {
+      this.generateTerrainChunks();
+    } else {
+      this.logWarning('Cannot create terrain: missing height data or invalid dimensions');
+    }
+  }
+  
+  /**
+   * Update the terrain rendering
+   * @param deltaTime Time since last update in seconds
+   */
+  public update(deltaTime: number): void {
+    if (!this.config.freeze) {
+      this.updateChunks();
+    }
   }
 } 

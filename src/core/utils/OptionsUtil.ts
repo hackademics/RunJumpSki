@@ -6,13 +6,13 @@
 /**
  * Type for validation rules
  */
-export type ValidationRule<T> = {
+export type ValidationRule<T, K extends keyof T = keyof T> = {
   /** Field to validate */
-  field: keyof T;
+  field: K;
   /** Whether field is required */
   required?: boolean;
   /** Validation function to check value */
-  validate?: (value: any) => boolean;
+  validate?: (value: T[K]) => boolean;
   /** Error message if validation fails */
   message?: string;
 };
@@ -27,7 +27,7 @@ export class OptionsUtil {
    * @param options User options
    * @returns Merged options
    */
-  public static mergeWithDefaults<T extends Record<string, any>>(
+  public static mergeWithDefaults<T extends Record<string, unknown>>(
     defaults: T,
     options?: Partial<T>
   ): T {
@@ -35,7 +35,7 @@ export class OptionsUtil {
       return { ...defaults };
     }
 
-    const result: Record<string, any> = { ...defaults };
+    const result = { ...defaults } as Record<string, unknown>;
 
     Object.keys(options).forEach(key => {
       const defaultValue = result[key];
@@ -52,7 +52,10 @@ export class OptionsUtil {
         defaultValue.constructor === Object &&
         optionValue.constructor === Object
       ) {
-        result[key] = this.mergeWithDefaults(defaultValue, optionValue);
+        result[key] = this.mergeWithDefaults(
+          defaultValue as Record<string, unknown>, 
+          optionValue as Record<string, unknown>
+        );
       } else {
         result[key] = optionValue;
       }
@@ -67,17 +70,18 @@ export class OptionsUtil {
    * @param rules Validation rules
    * @throws Error if validation fails
    */
-  public static validateOptions<T extends Record<string, any>>(
+  public static validateOptions<T extends Record<string, unknown>>(
     options: T,
     rules: ValidationRule<T>[]
   ): void {
     for (const rule of rules) {
-      const value = options[rule.field];
+      const field = rule.field as string;
+      const value = options[field];
       
       // Check if required
       if (rule.required && (value === undefined || value === null)) {
         throw new Error(
-          rule.message || `Required option '${String(rule.field)}' is missing`
+          rule.message || `Required option '${field}' is missing`
         );
       }
       
@@ -87,9 +91,9 @@ export class OptionsUtil {
       }
       
       // Validate using custom function
-      if (rule.validate && !rule.validate(value)) {
+      if (rule.validate && !rule.validate(value as T[typeof rule.field])) {
         throw new Error(
-          rule.message || `Option '${String(rule.field)}' failed validation`
+          rule.message || `Option '${field}' failed validation`
         );
       }
     }
@@ -101,10 +105,10 @@ export class OptionsUtil {
    * @param options Rule options
    * @returns Validation rule
    */
-  public static createRule<T>(
-    field: keyof T, 
-    options: Omit<ValidationRule<T>, 'field'> = {}
-  ): ValidationRule<T> {
+  public static createRule<T, K extends keyof T>(
+    field: K, 
+    options: Omit<ValidationRule<T, K>, 'field'> = {}
+  ): ValidationRule<T, K> {
     return {
       field,
       ...options
@@ -118,7 +122,7 @@ export class OptionsUtil {
    * @returns Validation function
    */
   public static numberRange(min: number, max: number) {
-    return (value: any): boolean => {
+    return <T>(value: T): boolean => {
       return typeof value === 'number' && value >= min && value <= max;
     };
   }
@@ -129,7 +133,7 @@ export class OptionsUtil {
    * @returns Validation function
    */
   public static stringPattern(pattern: RegExp) {
-    return (value: any): boolean => {
+    return <T>(value: T): boolean => {
       return typeof value === 'string' && pattern.test(value);
     };
   }
@@ -139,14 +143,14 @@ export class OptionsUtil {
    * @param itemValidator Validator for array items
    * @returns Validation function
    */
-  public static array(itemValidator?: (item: any) => boolean) {
-    return (value: any): boolean => {
+  public static array<T>(itemValidator?: (item: T) => boolean) {
+    return (value: unknown): boolean => {
       if (!Array.isArray(value)) {
         return false;
       }
       
       if (itemValidator) {
-        return value.every(item => itemValidator(item));
+        return value.every(item => itemValidator(item as T));
       }
       
       return true;

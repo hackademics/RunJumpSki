@@ -4,6 +4,9 @@
  */
 
 import { IControlBinding } from "../../input/IControlsConfig";
+import { EventListenerManager } from "../../../core/utils/EventListenerManager";
+import { ServiceLocator } from "../../../core/base/ServiceLocator";
+import { Logger } from "../../../core/utils/Logger";
 
 /**
  * Callback type for when a key is captured
@@ -24,20 +27,39 @@ export class BindingRow {
     private listeningForKey: boolean = false;
     private keyDownHandler: (e: KeyboardEvent) => void;
     private mouseDownHandler: (e: MouseEvent) => void;
+    private handleStartListening: () => void;
+    private handleStopListening: () => void;
+    private eventListenerManager: EventListenerManager;
+    private logger: Logger;
     
     /**
      * Creates a new binding row
      * @param parent Parent element to attach to
      * @param binding The binding to display
      * @param onKeyCapture Callback for key capture
+     * @param eventListenerManager Optional event listener manager
      */
     constructor(
         parent: HTMLElement, 
         binding: IControlBinding,
-        onKeyCapture: KeyCaptureCallback
+        onKeyCapture: KeyCaptureCallback,
+        eventListenerManager?: EventListenerManager
     ) {
         this.binding = binding;
         this.onKeyCapture = onKeyCapture;
+        
+        // Initialize EventListenerManager and Logger
+        this.eventListenerManager = eventListenerManager || new EventListenerManager();
+        
+        // Get logger from ServiceLocator or create a new one
+        try {
+            const serviceLocator = ServiceLocator.getInstance();
+            this.logger = serviceLocator.has('logger') 
+                ? serviceLocator.get<Logger>('logger') 
+                : new Logger('BindingRow');
+        } catch (e) {
+            this.logger = new Logger('BindingRow');
+        }
         
         // Create container
         this.container = document.createElement('div');
@@ -59,37 +81,52 @@ export class BindingRow {
         this.changeButton = document.createElement('button');
         this.changeButton.className = 'binding-change-btn';
         this.changeButton.textContent = 'Change';
-        this.changeButton.addEventListener('click', () => this.startListening());
-        this.container.appendChild(this.changeButton);
         
-        // Create event handlers
+        // Bind event handlers to maintain consistent references
+        this.handleStartListening = this.startListening.bind(this);
+        this.handleStopListening = this.stopListening.bind(this);
         this.keyDownHandler = this.handleKeyDown.bind(this);
         this.mouseDownHandler = this.handleMouseDown.bind(this);
         
+        // Use EventListenerManager for button click
+        this.eventListenerManager.addDOMListener(
+            this.changeButton,
+            'click',
+            this.handleStartListening as EventListener,
+            undefined,
+            `bindingRow_${binding.action}`
+        );
+        
+        this.container.appendChild(this.changeButton);
+        
         // Add to parent
         parent.appendChild(this.container);
+        
+        this.logger.debug(`BindingRow created for action: ${binding.action}`);
     }
     
     /**
-     * Formats a key name for display
-     * @param key The key to format
-     * @returns Formatted key name
+     * Formats key names for display
      */
     private formatKeyName(key: string): string {
-        // Format special keys
+        // Special format for common keys
         switch (key) {
             case ' ':
                 return 'Space';
+            case 'ArrowUp':
+                return '↑';
+            case 'ArrowDown':
+                return '↓';
+            case 'ArrowLeft':
+                return '←';
+            case 'ArrowRight':
+                return '→';
             case 'MouseLeft':
-                return 'Left Mouse';
+                return 'Left Click';
             case 'MouseRight':
-                return 'Right Mouse';
+                return 'Right Click';
             case 'MouseMiddle':
-                return 'Middle Mouse';
-            case 'MouseX':
-                return 'Mouse X-Axis';
-            case 'MouseY':
-                return 'Mouse Y-Axis';
+                return 'Middle Click';
             default:
                 return key;
         }
@@ -109,12 +146,35 @@ export class BindingRow {
         this.keyDisplay.textContent = 'Press a key...';
         this.keyDisplay.classList.add('listening');
         this.changeButton.textContent = 'Cancel';
-        this.changeButton.removeEventListener('click', () => this.startListening());
-        this.changeButton.addEventListener('click', () => this.stopListening());
         
-        // Add event listeners
-        document.addEventListener('keydown', this.keyDownHandler);
-        document.addEventListener('mousedown', this.mouseDownHandler);
+        // Switch button event listener
+        this.eventListenerManager.removeListenersByGroup(`bindingRow_${this.binding.action}`);
+        this.eventListenerManager.addDOMListener(
+            this.changeButton,
+            'click',
+            this.handleStopListening as EventListener,
+            undefined,
+            `bindingRow_${this.binding.action}`
+        );
+        
+        // Add event listeners using EventListenerManager
+        this.eventListenerManager.addDOMListener(
+            document,
+            'keydown',
+            this.keyDownHandler as EventListener,
+            undefined,
+            `bindingRow_${this.binding.action}`
+        );
+        
+        this.eventListenerManager.addDOMListener(
+            document,
+            'mousedown',
+            this.mouseDownHandler as EventListener,
+            undefined,
+            `bindingRow_${this.binding.action}`
+        );
+        
+        this.logger.debug(`Started listening for key input for action: ${this.binding.action}`);
         
         // Set timeout to automatically cancel after 5 seconds
         setTimeout(() => {
@@ -138,29 +198,37 @@ export class BindingRow {
         this.keyDisplay.textContent = this.formatKeyName(this.binding.key);
         this.keyDisplay.classList.remove('listening');
         this.changeButton.textContent = 'Change';
-        this.changeButton.removeEventListener('click', () => this.stopListening());
-        this.changeButton.addEventListener('click', () => this.startListening());
         
-        // Remove event listeners
-        document.removeEventListener('keydown', this.keyDownHandler);
-        document.removeEventListener('mousedown', this.mouseDownHandler);
+        // Switch button event listener
+        this.eventListenerManager.removeListenersByGroup(`bindingRow_${this.binding.action}`);
+        this.eventListenerManager.addDOMListener(
+            this.changeButton,
+            'click',
+            this.handleStartListening as EventListener,
+            undefined,
+            `bindingRow_${this.binding.action}`
+        );
+        
+        this.logger.debug(`Stopped listening for key input for action: ${this.binding.action}`);
     }
     
     /**
      * Handles key down events
      * @param e Key event
      */
-    private handleKeyDown(e: KeyboardEvent): void {
+    private handleKeyDown(e: Event): void {
+        const keyEvent = e as KeyboardEvent;
+        
         if (!this.listeningForKey) {
             return;
         }
         
         // Prevent default action
-        e.preventDefault();
-        e.stopPropagation();
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
         
         // Get key name
-        const key = e.key;
+        const key = keyEvent.key;
         
         // Ignore modifier keys
         if (
@@ -172,6 +240,12 @@ export class BindingRow {
             return;
         }
         
+        // If Escape, cancel
+        if (key === 'Escape') {
+            this.stopListening();
+            return;
+        }
+        
         // Apply the key
         this.applyKey(key);
     }
@@ -180,24 +254,25 @@ export class BindingRow {
      * Handles mouse down events
      * @param e Mouse event
      */
-    private handleMouseDown(e: MouseEvent): void {
+    private handleMouseDown(e: Event): void {
+        const mouseEvent = e as MouseEvent;
+        
         if (!this.listeningForKey) {
             return;
         }
         
-        // Prevent clicking on UI elements while listening
-        const target = e.target as HTMLElement;
-        if (target === this.changeButton) {
-            return; // Allow clicking cancel button
+        // Ignore clicks on this component
+        if (this.container.contains(mouseEvent.target as Node)) {
+            return;
         }
         
         // Prevent default action
-        e.preventDefault();
-        e.stopPropagation();
+        mouseEvent.preventDefault();
+        mouseEvent.stopPropagation();
         
         // Map mouse buttons to key names
         let key = '';
-        switch (e.button) {
+        switch (mouseEvent.button) {
             case 0:
                 key = 'MouseLeft';
                 break;
@@ -220,51 +295,50 @@ export class BindingRow {
      * @param key The key to apply
      */
     private applyKey(key: string): void {
-        // Check if the key is already used
-        if (this.onKeyCapture(key)) {
-            // Update the binding
+        // Call the callback to update the binding
+        const success = this.onKeyCapture(key);
+        
+        if (success) {
+            // Update the binding and UI
             this.binding.key = key;
-            
-            // Stop listening
-            this.stopListening();
-            
-            // Update display
             this.keyDisplay.textContent = this.formatKeyName(key);
+            this.logger.debug(`Binding updated for ${this.binding.action}: ${key}`);
         } else {
-            // Failed to apply - show error briefly
-            const originalText = this.keyDisplay.textContent;
-            this.keyDisplay.textContent = 'Already used';
-            this.keyDisplay.classList.add('error');
+            // Show error
+            this.keyDisplay.textContent = 'Key in use';
+            this.logger.warn(`Failed to update binding for ${this.binding.action} with key ${key}: already in use`);
             
-            // Restore after a moment
+            // Reset after a short delay
             setTimeout(() => {
                 if (this.listeningForKey) {
                     this.keyDisplay.textContent = 'Press a key...';
-                    this.keyDisplay.classList.remove('error');
                 } else {
-                    this.keyDisplay.textContent = originalText || this.formatKeyName(this.binding.key);
-                    this.keyDisplay.classList.remove('error');
+                    this.keyDisplay.textContent = this.formatKeyName(this.binding.key);
                 }
             }, 1500);
         }
+        
+        // Stop listening
+        this.stopListening();
     }
     
     /**
      * Cleans up resources
      */
-    public destroy(): void {
+    public dispose(): void {
         // Stop listening if active
         if (this.listeningForKey) {
             this.stopListening();
         }
         
-        // Remove event listeners
-        this.changeButton.removeEventListener('click', () => this.startListening());
-        this.changeButton.removeEventListener('click', () => this.stopListening());
+        // Remove all event listeners for this component
+        this.eventListenerManager.removeListenersByGroup(`bindingRow_${this.binding.action}`);
         
         // Remove from DOM
         if (this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
         }
+        
+        this.logger.debug(`BindingRow disposed for action: ${this.binding.action}`);
     }
 } 

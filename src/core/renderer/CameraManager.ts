@@ -212,7 +212,7 @@ export class CameraManager implements ICameraManager {
     const cameraComponent = new CameraComponent(componentOptions);
 
     // Initialize the component
-    cameraComponent.init(entity);
+    cameraComponent.initialize(entity);
 
     // Add to entity
     entity.addComponent(cameraComponent);
@@ -262,7 +262,7 @@ export class CameraManager implements ICameraManager {
     const firstPersonCamera = new FirstPersonCameraComponent(componentOptions);
 
     // Initialize the component
-    firstPersonCamera.init(entity);
+    firstPersonCamera.initialize(entity);
 
     // Add to entity
     entity.addComponent(firstPersonCamera);

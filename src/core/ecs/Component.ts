@@ -67,7 +67,7 @@ export abstract class Component implements IComponent {
    * @param entity The entity to which this component is being added
    * @throws {ComponentError} If initialization fails
    */
-  public init(entity: IEntity): void {
+  public initialize(entity: IEntity): void {
     try {
       // Store reference to the entity
       this.entity = entity;

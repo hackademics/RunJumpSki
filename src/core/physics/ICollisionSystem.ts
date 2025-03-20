@@ -140,5 +140,6 @@ export interface ICollisionSystem {
   /**
    * Destroys the collision system and cleans up resources.
    */
-  destroy(): void;
+  dispose(): void;
 }
+

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file src/core/ecs/components/TransformComponent.ts
  * @description Implementation of the TransformComponent that handles entity positioning
  */
@@ -107,8 +107,8 @@ export class TransformComponent extends Component implements ITransformComponent
     /**
      * Initialize the component
      */
-    public override init(entity: IEntity): void {
-        super.init(entity);
+    public override initialize(entity: IEntity): void {
+        super.initialize(entity);
     }
 
     /**
@@ -347,5 +347,7 @@ export class TransformComponent extends Component implements ITransformComponent
         this.dirty = false;
     }
 }
+
+
 
 

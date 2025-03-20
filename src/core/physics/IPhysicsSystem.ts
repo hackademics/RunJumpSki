@@ -33,7 +33,7 @@ export interface IPhysicsSystem {
   /**
    * Destroys the physics system and cleans up resources.
    */
-  destroy(): void;
+  dispose(): void;
   
   /**
    * Gets the current physics engine instance.
@@ -175,3 +175,4 @@ export interface IPhysicsSystem {
     callback: (collider: BABYLON.PhysicsImpostor, collidedWith: BABYLON.PhysicsImpostor) => void
   ): void;
 }
+

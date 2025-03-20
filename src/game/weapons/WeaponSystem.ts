@@ -96,7 +96,7 @@ export class WeaponSystem extends System implements ISystem {
   /**
    * Initialize the weapon system
    */
-  public async init(): Promise<void> {
+  public async initialize(): Promise<void> {
     // Get services using ServiceLocator.getInstance().get() method
     const serviceLocator = ServiceLocator.getInstance();
     this.logger = serviceLocator.get<ILogger>('logger');
@@ -229,8 +229,9 @@ export class WeaponSystem extends System implements ISystem {
     }
     
     // Clean up pooled projectile physics
-    this.pooledProjectilePhysics.destroy();
+    this.pooledProjectilePhysics.dispose();
     
     this.logger?.info('[WeaponSystem] Weapon system disposed');
   }
 } 
+

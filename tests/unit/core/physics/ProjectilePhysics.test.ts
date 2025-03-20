@@ -18,7 +18,7 @@ describe('ProjectilePhysics', () => {
     initialize: jest.fn(),
     update: jest.fn(),
     setGravity: jest.fn(),
-    destroy: jest.fn(),
+    dispose: jest.fn(),
     getPhysicsEngine: jest.fn(),
     createImpostor: jest.fn(),
     applyForce: jest.fn(),
@@ -37,7 +37,7 @@ describe('ProjectilePhysics', () => {
     unregisterTriggerZone: jest.fn(),
     areColliding: jest.fn(),
     raycast: jest.fn(),
-    destroy: jest.fn()
+    dispose: jest.fn()
   };
   
   // Mock scene
@@ -367,7 +367,7 @@ describe('ProjectilePhysics', () => {
       );
       
       // Call destroy
-      projectilePhysics.destroy();
+      projectilePhysics.dispose();
       
       // Check if resources were cleaned up
       expect(mockImpostor.dispose).toHaveBeenCalledTimes(2);

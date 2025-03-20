@@ -13,7 +13,7 @@ const createMockPhysicsSystem = (): IPhysicsSystem => {
     initialize: jest.fn(),
     update: jest.fn(),
     setGravity: jest.fn(),
-    destroy: jest.fn(),
+    dispose: jest.fn(),
     getPhysicsEngine: jest.fn().mockReturnValue({}),
     createImpostor: jest.fn().mockReturnValue({
       setLinearVelocity: jest.fn(),
@@ -348,3 +348,4 @@ describe('PhysicsManager', () => {
     });
   });
 });
+

@@ -13,6 +13,8 @@ import {
 } from "./IControlsConfig";
 import { GameInputActions } from "./GameInputActions";
 import { InputActionCategory, ACTION_CATEGORIES } from "./GameInputActions";
+import { Logger } from "../../core/utils/Logger";
+import { ServiceLocator } from "../../core/base/ServiceLocator";
 
 /**
  * Default implementation of the controls configuration
@@ -26,6 +28,7 @@ export class ControlsConfig implements IControlsConfig {
     public invertYAxis: boolean;
     
     private bindings: Map<string, IControlBinding>;
+    private logger: Logger;
     
     /**
      * Creates a new ControlsConfig with default settings
@@ -40,6 +43,23 @@ export class ControlsConfig implements IControlsConfig {
         this.invertYAxis = false;
         this.bindings = new Map<string, IControlBinding>();
         this.categories = [];
+        
+        // Initialize logger with default instance
+        this.logger = new Logger('ControlsConfig');
+        
+        // Try to get the logger from ServiceLocator
+        try {
+            const serviceLocator = ServiceLocator.getInstance();
+            if (serviceLocator.has('logger')) {
+                this.logger = serviceLocator.get<Logger>('logger');
+                // Add context tag
+                this.logger.addTag('ControlsConfig');
+            }
+        } catch (e) {
+            this.logger.warn(`Failed to get logger from ServiceLocator: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        }
+        
+        this.logger.debug(`Creating controls configuration: ${id}`);
         
         // Setup the controls
         this.resetToDefaults();
@@ -222,9 +242,10 @@ export class ControlsConfig implements IControlsConfig {
             // Re-organize categories
             this.organizeCategories();
             
+            this.logger.debug(`Successfully imported configuration: ${this.id}`);
             return true;
         } catch (e) {
-            console.error("Error importing controls configuration:", e);
+            this.logger.error("Error importing controls configuration:", e instanceof Error ? e : String(e));
             return false;
         }
     }

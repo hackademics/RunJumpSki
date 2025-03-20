@@ -448,7 +448,7 @@ export class CollisionSystem implements ICollisionSystem {
   /**
    * Destroys the collision system and cleans up resources.
    */
-  public destroy(): void {
+  public dispose(): void {
     // Clear all collision handlers
     this.collisionHandlers.clear();
     
@@ -463,3 +463,4 @@ export class CollisionSystem implements ICollisionSystem {
     console.log("CollisionSystem destroyed");
   }
 }
+

@@ -7,6 +7,9 @@ import { ControlBindingPanel } from "./ControlBindingPanel";
 import { ControlsUIManager } from "./ControlsUIManager";
 import { IControlsConfig } from "../../input/IControlsConfig";
 import { KeyCaptureDialog } from "./KeyCaptureDialog";
+import { EventListenerManager } from "../../../core/utils/EventListenerManager";
+import { ServiceLocator } from "../../../core/base/ServiceLocator";
+import { Logger } from "../../../core/utils/Logger";
 
 /**
  * Controls menu screen for configuring game controls
@@ -25,15 +28,35 @@ export class ControlsMenuScreen {
     private uiManager: ControlsUIManager;
     private activeConfig: IControlsConfig;
     private keyCapture: KeyCaptureDialog;
+    private eventListenerManager: EventListenerManager;
+    private logger: Logger;
     
     /**
      * Creates a new controls menu screen
      * @param parent Parent element to attach to
      * @param uiManager Controls UI manager
+     * @param eventListenerManager Optional event listener manager
      */
-    constructor(parent: HTMLElement, uiManager: ControlsUIManager) {
+    constructor(
+        parent: HTMLElement, 
+        uiManager: ControlsUIManager,
+        eventListenerManager?: EventListenerManager
+    ) {
         this.uiManager = uiManager;
         this.activeConfig = uiManager.getActiveConfig();
+        
+        // Initialize EventListenerManager and Logger
+        this.eventListenerManager = eventListenerManager || new EventListenerManager();
+        
+        // Get logger from ServiceLocator or create a new one
+        try {
+            const serviceLocator = ServiceLocator.getInstance();
+            this.logger = serviceLocator.has('logger') 
+                ? serviceLocator.get<Logger>('logger') 
+                : new Logger('ControlsMenuScreen');
+        } catch (e) {
+            this.logger = new Logger('ControlsMenuScreen');
+        }
         
         // Create root container
         this.container = document.createElement('div');
@@ -49,109 +72,125 @@ export class ControlsMenuScreen {
         configContainer.className = 'config-selector-container';
         
         const configLabel = document.createElement('label');
-        configLabel.textContent = 'Control Scheme:';
+        configLabel.textContent = 'Configuration: ';
         configContainer.appendChild(configLabel);
         
         this.configSelector = document.createElement('select');
-        this.populateConfigSelector();
         configContainer.appendChild(this.configSelector);
         
+        // New config button
         const newConfigButton = document.createElement('button');
         newConfigButton.textContent = 'New';
-        newConfigButton.addEventListener('click', () => this.createNewConfig());
+        this.eventListenerManager.addDOMListener(
+            newConfigButton,
+            'click',
+            (() => this.createNewConfig()) as EventListener,
+            undefined,
+            'controlsMenuScreen'
+        );
         configContainer.appendChild(newConfigButton);
         
         this.container.appendChild(configContainer);
         
-        // Create sensitivity controls
-        const sensitivityContainer = document.createElement('div');
-        sensitivityContainer.className = 'sensitivity-container';
+        // Create mouse sensitivity controls
+        const mouseContainer = document.createElement('div');
+        mouseContainer.className = 'mouse-settings-container';
         
         const sensitivityLabel = document.createElement('label');
-        sensitivityLabel.textContent = 'Mouse Sensitivity:';
-        sensitivityContainer.appendChild(sensitivityLabel);
+        sensitivityLabel.textContent = 'Mouse Sensitivity: ';
+        mouseContainer.appendChild(sensitivityLabel);
         
         this.sensitivitySlider = document.createElement('input');
         this.sensitivitySlider.type = 'range';
         this.sensitivitySlider.min = '0.1';
-        this.sensitivitySlider.max = '2.0';
+        this.sensitivitySlider.max = '2';
         this.sensitivitySlider.step = '0.1';
         this.sensitivitySlider.value = this.activeConfig.mouseSensitivity.toString();
-        sensitivityContainer.appendChild(this.sensitivitySlider);
+        mouseContainer.appendChild(this.sensitivitySlider);
         
-        const sensitivityValue = document.createElement('span');
-        sensitivityValue.textContent = this.activeConfig.mouseSensitivity.toString();
-        this.sensitivitySlider.addEventListener('input', () => {
-            sensitivityValue.textContent = this.sensitivitySlider.value;
-        });
-        sensitivityContainer.appendChild(sensitivityValue);
-        
-        this.container.appendChild(sensitivityContainer);
-        
-        // Create invert Y controls
         const invertContainer = document.createElement('div');
-        invertContainer.className = 'invert-container';
-        
-        const invertLabel = document.createElement('label');
-        invertLabel.textContent = 'Invert Y-Axis:';
-        invertContainer.appendChild(invertLabel);
-        
         this.invertYCheckbox = document.createElement('input');
         this.invertYCheckbox.type = 'checkbox';
         this.invertYCheckbox.checked = this.activeConfig.invertYAxis;
         invertContainer.appendChild(this.invertYCheckbox);
         
-        this.container.appendChild(invertContainer);
+        const invertLabel = document.createElement('label');
+        invertLabel.textContent = 'Invert Y-Axis';
+        invertContainer.appendChild(invertLabel);
         
-        // Create binding panels
+        mouseContainer.appendChild(invertContainer);
+        this.container.appendChild(mouseContainer);
+        
+        // Create bindings container
         const bindingsContainer = document.createElement('div');
         bindingsContainer.className = 'bindings-container';
-        
-        // Create a panel for each category
-        for (const category of this.activeConfig.categories) {
-            const panel = new ControlBindingPanel(
-                bindingsContainer, 
-                category,
-                (action: string, key: string) => this.uiManager.updateBinding(action, key)
-            );
-            
-            this.bindingPanels.push(panel);
-        }
-        
         this.container.appendChild(bindingsContainer);
         
-        // Create buttons
-        const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'button-container';
+        // Create key capture dialog
+        this.keyCapture = new KeyCaptureDialog(
+            this.container, 
+            this.uiManager,
+            this.eventListenerManager
+        );
         
+        // Create buttons container
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.className = 'controls-buttons-container';
+        
+        // Reset button
         this.resetButton = document.createElement('button');
-        this.resetButton.textContent = 'Reset to Defaults';
-        this.resetButton.addEventListener('click', () => this.resetConfig());
-        buttonContainer.appendChild(this.resetButton);
+        this.resetButton.textContent = 'Reset to Default';
+        this.eventListenerManager.addDOMListener(
+            this.resetButton,
+            'click',
+            (() => this.resetConfig()) as EventListener,
+            undefined,
+            'controlsMenuScreen'
+        );
+        buttonsContainer.appendChild(this.resetButton);
         
+        // Save button
         this.saveButton = document.createElement('button');
-        this.saveButton.textContent = 'Apply Changes';
-        this.saveButton.addEventListener('click', () => this.saveChanges());
-        buttonContainer.appendChild(this.saveButton);
+        this.saveButton.textContent = 'Save Changes';
+        this.eventListenerManager.addDOMListener(
+            this.saveButton,
+            'click',
+            (() => this.saveChanges()) as EventListener,
+            undefined,
+            'controlsMenuScreen'
+        );
+        buttonsContainer.appendChild(this.saveButton);
         
+        // Back button
         this.backButton = document.createElement('button');
         this.backButton.textContent = 'Back';
-        this.backButton.addEventListener('click', () => this.uiManager.closeControlsMenu());
-        buttonContainer.appendChild(this.backButton);
+        this.eventListenerManager.addDOMListener(
+            this.backButton,
+            'click',
+            (() => this.uiManager.closeControlsMenu()) as EventListener,
+            undefined,
+            'controlsMenuScreen'
+        );
+        buttonsContainer.appendChild(this.backButton);
         
-        this.container.appendChild(buttonContainer);
-        
-        // Create key capture dialog
-        this.keyCapture = new KeyCaptureDialog(this.container, this.uiManager);
+        this.container.appendChild(buttonsContainer);
         
         // Add to parent
         parent.appendChild(this.container);
         
-        // Set up event listeners
-        this.configSelector.addEventListener('change', () => this.onConfigChange());
+        // Set up event listeners with EventListenerManager
+        this.eventListenerManager.addDOMListener(
+            this.configSelector,
+            'change',
+            (() => this.onConfigChange()) as EventListener,
+            undefined,
+            'controlsMenuScreen'
+        );
         
         // Initially hide
         this.hide();
+        
+        this.logger.debug('ControlsMenuScreen created');
     }
     
     /**
@@ -161,6 +200,7 @@ export class ControlsMenuScreen {
         // Refresh to get latest config
         this.refreshControls();
         this.container.style.display = 'flex';
+        this.logger.debug('ControlsMenuScreen shown');
     }
     
     /**
@@ -168,6 +208,7 @@ export class ControlsMenuScreen {
      */
     public hide(): void {
         this.container.style.display = 'none';
+        this.logger.debug('ControlsMenuScreen hidden');
     }
     
     /**
@@ -177,6 +218,7 @@ export class ControlsMenuScreen {
         if (confirm('Reset all controls to default settings?')) {
             this.uiManager.resetActiveConfig();
             this.refreshControls();
+            this.logger.debug('Controls reset to default');
         }
     }
     
@@ -192,6 +234,7 @@ export class ControlsMenuScreen {
         
         // Notify of changes
         this.uiManager.applyChanges();
+        this.logger.debug('Control settings saved');
     }
     
     /**
@@ -201,6 +244,7 @@ export class ControlsMenuScreen {
         const configId = this.configSelector.value;
         if (this.uiManager.setActiveConfig(configId)) {
             this.refreshControls();
+            this.logger.debug(`Config changed to: ${configId}`);
         }
     }
     
@@ -216,7 +260,7 @@ export class ControlsMenuScreen {
         this.invertYCheckbox.checked = this.activeConfig.invertYAxis;
         
         // Refresh binding panels
-        this.bindingPanels.forEach(panel => panel.destroy());
+        this.bindingPanels.forEach(panel => panel.dispose());
         this.bindingPanels = [];
         
         const bindingsContainer = this.container.querySelector('.bindings-container');
@@ -229,7 +273,8 @@ export class ControlsMenuScreen {
                 const panel = new ControlBindingPanel(
                     bindingsContainer as HTMLElement, 
                     category,
-                    (action: string, key: string) => this.uiManager.updateBinding(action, key)
+                    (action: string, key: string) => this.uiManager.updateBinding(action, key),
+                    this.eventListenerManager
                 );
                 
                 this.bindingPanels.push(panel);
@@ -238,6 +283,8 @@ export class ControlsMenuScreen {
         
         // Refresh config selector
         this.populateConfigSelector();
+        
+        this.logger.debug('Controls UI refreshed');
     }
     
     /**
@@ -279,6 +326,7 @@ export class ControlsMenuScreen {
                 this.populateConfigSelector();
                 this.configSelector.value = id;
                 this.onConfigChange();
+                this.logger.debug(`New config created: ${name} (${id})`);
             }
         }
     }
@@ -286,16 +334,21 @@ export class ControlsMenuScreen {
     /**
      * Cleans up resources
      */
-    public destroy(): void {
+    public dispose(): void {
         // Clean up binding panels
-        this.bindingPanels.forEach(panel => panel.destroy());
+        this.bindingPanels.forEach(panel => panel.dispose());
         
         // Clean up key capture dialog
-        this.keyCapture.destroy();
+        this.keyCapture.dispose();
+        
+        // Remove all event listeners
+        this.eventListenerManager.removeListenersByGroup('controlsMenuScreen');
         
         // Remove from DOM
         if (this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
         }
+        
+        this.logger.debug('ControlsMenuScreen disposed');
     }
 } 

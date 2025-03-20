@@ -274,7 +274,7 @@ export class PhysicsManager implements IPhysicsManager {
    */
   public dispose(): void {
     this.bodies.clear();
-    this.physicsSystem.destroy();
+    this.physicsSystem.dispose();
     this.scene = null;
   }
 } 

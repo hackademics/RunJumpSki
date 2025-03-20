@@ -1,6 +1,6 @@
 /**
  * @file src/core/physics/TerrainCollider.ts
- * @description Implements terrain collision detection and surface information.
+ * @description Handles collision detection with terrain
  */
 
 import * as BABYLON from 'babylonjs';
@@ -11,6 +11,53 @@ import {
   TerrainRaycastHit, 
   HeightmapData 
 } from './ITerrainCollider';
+import { ResourceTracker, ResourceType } from '../utils/ResourceTracker';
+import { Logger } from '../utils/Logger';
+import { ServiceLocator } from '../base/ServiceLocator';
+
+/**
+ * Configuration options for the terrain collider
+ */
+export interface TerrainColliderOptions {
+  /** Whether to use heightmap-based terrain collision (more accurate but slower) */
+  useHeightmapCollision: boolean;
+  /** Whether to use simplified collisions for distant objects */
+  useDistanceBasedSimplification: boolean;
+  /** Distance threshold for using simplified collisions */
+  simplificationDistance: number;
+  /** Number of rays to cast for heightmap collision */
+  raySamples: number;
+  /** Whether to cache terrain height queries */
+  useHeightCache: boolean;
+  /** Maximum cache size for height queries */
+  maxCacheSize: number;
+  /** Whether to use an optimized octree for terrain collision */
+  useOctree: boolean;
+}
+
+/**
+ * Default terrain collider options
+ */
+export const DEFAULT_TERRAIN_COLLIDER_OPTIONS: TerrainColliderOptions = {
+  useHeightmapCollision: true,
+  useDistanceBasedSimplification: true,
+  simplificationDistance: 100,
+  raySamples: 5,
+  useHeightCache: true,
+  maxCacheSize: 10000,
+  useOctree: true
+};
+
+/**
+ * Performance level for terrain collision
+ */
+export enum TerrainCollisionPerformanceLevel {
+  ULTRA = 0,
+  HIGH = 1,
+  MEDIUM = 2,
+  LOW = 3, 
+  VERY_LOW = 4
+}
 
 /**
  * Represents a terrain material type
@@ -30,7 +77,30 @@ interface TerrainHitCallbackRegistration {
 }
 
 /**
- * Implementation of the ITerrainCollider interface for terrain collision detection
+ * Cache entry for height and normal data at a specific point
+ */
+interface TerrainDataCacheEntry {
+  position: BABYLON.Vector3;
+  height: number;
+  normal: BABYLON.Vector3;
+  lastAccessTime: number;
+  materialType: string;
+}
+
+/**
+ * Grid cell containing cached terrain data
+ */
+interface TerrainGridCell {
+  minX: number;
+  minZ: number;
+  maxX: number;
+  maxZ: number;
+  samples: TerrainDataCacheEntry[];
+  lastAccessTime: number;
+}
+
+/**
+ * Manages collision detection with terrain
  */
 export class TerrainCollider implements ITerrainCollider {
   private scene: BABYLON.Scene | null = null;
@@ -40,16 +110,96 @@ export class TerrainCollider implements ITerrainCollider {
   private terrainMaterials: Map<string, TerrainMaterial> = new Map();
   private hitCallbacks: Map<string, TerrainHitCallbackRegistration> = new Map();
   private defaultMaterial: TerrainMaterial = { name: 'default', friction: 0.5 };
+  private resourceTracker: ResourceTracker;
+  private logger: Logger;
+  private resourceGroup: string = 'terrainCollider';
+  
+  // Spatial caching for terrain data
+  private terrainDataCache: Map<string, TerrainDataCacheEntry> = new Map();
+  private terrainGridCache: Map<string, TerrainGridCell> = new Map();
+  private gridCellSize: number = 10;
+  private maxSamplesPerCell: number = 25;
+  private maxCacheEntries: number = 1000;
+  private cacheCleanupInterval: number = 5000; // ms
+  private lastCacheCleanup: number = 0;
+  private rayCaster: BABYLON.Ray = new BABYLON.Ray(BABYLON.Vector3.Zero(), BABYLON.Vector3.Down(), 1000);
+  
+  // Performance optimization flags
+  private useHeightCaching: boolean = true;
+  private useNormalCaching: boolean = true;
+  private useMaterialCaching: boolean = true;
+  private spatialSamplingResolution: number = 2; // Every 2 units in each direction
+  
+  private terrainHeightCache: Map<string, number> = new Map();
+  private options: TerrainColliderOptions;
+  private octree: BABYLON.Octree<BABYLON.SubMesh> | null = null;
+  private currentPerformanceLevel: TerrainCollisionPerformanceLevel = TerrainCollisionPerformanceLevel.HIGH;
+  private adaptiveQuality: boolean = false;
+  private playerPosition: BABYLON.Vector3 | null = null;
+  private lastQualityCheck: number = 0;
+  private qualityCheckInterval: number = 2000; // ms
   
   /**
-   * Creates a new terrain collider.
+   * Constructor for TerrainCollider
+   * @param scene Optional Babylon.js scene (can also be set later via initialize)
+   * @param terrain Optional terrain mesh to use for collision detection
+   * @param options Configuration options for the terrain collider
    */
-  constructor() {
-    this.terrainMaterials = new Map();
-    this.hitCallbacks = new Map();
+  constructor(
+    scene?: BABYLON.Scene, 
+    terrain?: BABYLON.Mesh, 
+    options: Partial<TerrainColliderOptions> = {}
+  ) {
+    // Set scene and terrain if provided
+    this.scene = scene || null;
+    this.terrainMesh = terrain || null;
     
-    // Set up default material
-    this.terrainMaterials.set('default', this.defaultMaterial);
+    // Set options
+    this.options = { ...DEFAULT_TERRAIN_COLLIDER_OPTIONS, ...options };
+    
+    // Initialize logger
+    this.logger = new Logger('TerrainCollider');
+    
+    // Try to get logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        this.logger.addTag('TerrainCollider');
+      }
+    } catch (e) {
+      // Use default logger
+    }
+    
+    // Initialize resource tracker from ServiceLocator or create a new one
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('resourceTracker')) {
+        this.resourceTracker = serviceLocator.get<ResourceTracker>('resourceTracker');
+      } else {
+        this.resourceTracker = new ResourceTracker();
+      }
+    } catch (e) {
+      this.resourceTracker = new ResourceTracker();
+    }
+    
+    // Initialize the collider if scene is provided
+    if (this.scene) {
+      this.initialize(this.scene);
+    }
+    
+    // Set up update loop for adaptive quality
+    if (this.scene) {
+      this.scene.onBeforeRenderObservable.add(() => {
+        if (this.adaptiveQuality) {
+          const currentTime = performance.now();
+          if (currentTime - this.lastQualityCheck > this.qualityCheckInterval) {
+            this.adaptQualityBasedOnPerformance();
+            this.lastQualityCheck = currentTime;
+          }
+        }
+      });
+    }
   }
   
   /**
@@ -59,7 +209,18 @@ export class TerrainCollider implements ITerrainCollider {
   public initialize(scene: BABYLON.Scene): void {
     this.scene = scene;
     
-    console.log("TerrainCollider initialized");
+    // Set up regular cache cleanup
+    if (this.scene) {
+      this.scene.onBeforeRenderObservable.add(() => {
+        const currentTime = performance.now();
+        if (currentTime - this.lastCacheCleanup > this.cacheCleanupInterval) {
+          this.cleanupCache();
+          this.lastCacheCleanup = currentTime;
+        }
+      });
+    }
+    
+    this.logger.debug("TerrainCollider initialized");
   }
   
   /**
@@ -77,10 +238,105 @@ export class TerrainCollider implements ITerrainCollider {
   public setHeightmapData(heightmapData: HeightmapData): void {
     this.heightmapData = heightmapData;
     
+    // Clear any existing caches when setting new heightmap data
+    this.clearCaches();
+    
     // If a terrain mesh already exists, update or recreate it based on the new heightmap
     if (this.scene && !this.terrainMesh) {
       this.createTerrainFromHeightmap();
     }
+  }
+  
+  /**
+   * Clears all terrain data caches
+   */
+  private clearCaches(): void {
+    this.terrainDataCache.clear();
+    this.terrainGridCache.clear();
+    this.logger.debug("Terrain caches cleared");
+  }
+  
+  /**
+   * Cleans up old entries from the cache
+   */
+  private cleanupCache(): void {
+    const currentTime = performance.now();
+    
+    // Clean up point cache if it's getting too large
+    if (this.terrainDataCache.size > this.maxCacheEntries) {
+      // Sort entries by last access time
+      const entries = Array.from(this.terrainDataCache.entries());
+      entries.sort((a, b) => a[1].lastAccessTime - b[1].lastAccessTime);
+      
+      // Remove oldest entries
+      const entriesToRemove = Math.floor(this.maxCacheEntries * 0.2); // Remove 20%
+      for (let i = 0; i < entriesToRemove && i < entries.length; i++) {
+        this.terrainDataCache.delete(entries[i][0]);
+      }
+      
+      this.logger.debug(`Removed ${entriesToRemove} old cache entries`);
+    }
+    
+    // Clean up grid cache
+    const gridEntries = Array.from(this.terrainGridCache.entries());
+    // Remove cells that haven't been accessed in a while
+    const threshold = currentTime - this.cacheCleanupInterval * 10; // 10x the cleanup interval
+    
+    let removed = 0;
+    for (const [key, cell] of gridEntries) {
+      if (cell.lastAccessTime < threshold) {
+        this.terrainGridCache.delete(key);
+        removed++;
+      }
+    }
+    
+    if (removed > 0) {
+      this.logger.debug(`Removed ${removed} old grid cells from cache`);
+    }
+  }
+  
+  /**
+   * Gets the grid cell key for a position
+   */
+  private getGridCellKey(position: BABYLON.Vector2 | BABYLON.Vector3): string {
+    const x = 'z' in position ? position.x : position.x;
+    const z = 'z' in position ? position.z : position.y;
+    
+    const cellX = Math.floor(x / this.gridCellSize);
+    const cellZ = Math.floor(z / this.gridCellSize);
+    
+    return `${cellX}_${cellZ}`;
+  }
+  
+  /**
+   * Gets or creates a grid cell for the given position
+   */
+  private getOrCreateGridCell(position: BABYLON.Vector2 | BABYLON.Vector3): TerrainGridCell {
+    const key = this.getGridCellKey(position);
+    
+    let cell = this.terrainGridCache.get(key);
+    if (!cell) {
+      const x = 'z' in position ? position.x : position.x;
+      const z = 'z' in position ? position.z : position.y;
+      
+      const cellX = Math.floor(x / this.gridCellSize);
+      const cellZ = Math.floor(z / this.gridCellSize);
+      
+      cell = {
+        minX: cellX * this.gridCellSize,
+        minZ: cellZ * this.gridCellSize,
+        maxX: (cellX + 1) * this.gridCellSize,
+        maxZ: (cellZ + 1) * this.gridCellSize,
+        samples: [],
+        lastAccessTime: performance.now()
+      };
+      
+      this.terrainGridCache.set(key, cell);
+    } else {
+      cell.lastAccessTime = performance.now();
+    }
+    
+    return cell;
   }
   
   /**
@@ -122,10 +378,10 @@ export class TerrainCollider implements ITerrainCollider {
       throw new Error("TerrainCollider: Must initialize before setting terrain mesh");
     }
     
-    // Clean up previous mesh if it exists
-    if (this.terrainMesh && this.terrainImpostor) {
+    // Clean up previous impostor if it exists
+    if (this.terrainImpostor) {
       this.terrainImpostor.dispose();
-      // Don't dispose the mesh itself, as it might be used elsewhere
+      this.terrainImpostor = null;
     }
     
     this.terrainMesh = terrainMesh;
@@ -138,10 +394,154 @@ export class TerrainCollider implements ITerrainCollider {
       this.scene
     );
     
+    // Track the impostor
+    this.trackResource(this.terrainImpostor, ResourceType.IMPOSTOR, 'terrainImpostor');
+    
     // Register for collision events
     this.registerTerrainCollisionEvents();
     
-    console.log("TerrainCollider: Terrain mesh set");
+    // Clear any existing caches when setting new terrain mesh
+    this.clearCaches();
+    
+    // Pre-populate cache with a grid of samples
+    if (this.heightmapData) {
+      this.preCacheTerrainData();
+    }
+    
+    this.logger.debug("TerrainCollider: Terrain mesh set");
+  }
+  
+  /**
+   * Pre-populates the terrain data cache with a grid of samples
+   */
+  private preCacheTerrainData(): void {
+    if (!this.heightmapData || !this.useHeightCaching) return;
+    
+    const { width, height, scale } = this.heightmapData;
+    
+    // Skip if terrain is too large (would take too much memory)
+    if (width * height > 4000 * 4000) {
+      this.logger.debug("Terrain too large for full pre-caching, will cache on demand");
+      return;
+    }
+    
+    this.logger.debug("Pre-caching terrain data...");
+    
+    // Sample points at spatialSamplingResolution intervals
+    const totalWidth = width * scale.x;
+    const totalHeight = height * scale.y;
+    
+    const startX = -totalWidth / 2;
+    const startZ = -totalHeight / 2;
+    const endX = totalWidth / 2;
+    const endZ = totalHeight / 2;
+    
+    let sampleCount = 0;
+    
+    // Process in smaller batches to avoid blocking the main thread for too long
+    const processBatch = (x: number, z: number) => {
+      const batchSize = 100;
+      let processed = 0;
+      
+      while (processed < batchSize && x <= endX) {
+        while (processed < batchSize && z <= endZ) {
+          const position = new BABYLON.Vector3(x, 0, z);
+          
+          // Get and cache the height and normal
+          const height = this.getHeightFromHeightmap(position);
+          
+          if (height !== null) {
+            position.y = height;
+            const normal = this.getNormalFromHeightmap(position);
+            const materialType = this.getMaterialTypeAt(position);
+            
+            // Add to our caches
+            const cacheKey = `${x.toFixed(1)},${z.toFixed(1)}`;
+            const entry: TerrainDataCacheEntry = {
+              position: position.clone(),
+              height,
+              normal,
+              lastAccessTime: performance.now(),
+              materialType
+            };
+            
+            this.terrainDataCache.set(cacheKey, entry);
+            
+            // Also add to the grid cache
+            const cell = this.getOrCreateGridCell(position);
+            if (cell.samples.length < this.maxSamplesPerCell) {
+              cell.samples.push(entry);
+            }
+            
+            sampleCount++;
+          }
+          
+          z += this.spatialSamplingResolution;
+          processed++;
+        }
+        
+        z = startZ;
+        x += this.spatialSamplingResolution;
+      }
+      
+      // Continue with the next batch if not done
+      if (x <= endX) {
+        setTimeout(() => processBatch(x, z), 0);
+      } else {
+        this.logger.debug(`Terrain pre-caching complete. ${sampleCount} points cached.`);
+      }
+    };
+    
+    // Start processing
+    setTimeout(() => processBatch(startX, startZ), 0);
+  }
+  
+  /**
+   * Gets the closest cached sample to the given position
+   */
+  private getClosestCachedSample(position: BABYLON.Vector2 | BABYLON.Vector3): TerrainDataCacheEntry | null {
+    // Check direct cache hit first
+    const cacheKey = 'z' in position 
+      ? `${position.x.toFixed(1)},${position.z.toFixed(1)}`
+      : `${position.x.toFixed(1)},${position.y.toFixed(1)}`;
+    
+    const directHit = this.terrainDataCache.get(cacheKey);
+    if (directHit) {
+      directHit.lastAccessTime = performance.now();
+      return directHit;
+    }
+    
+    // Try to find a close enough sample in the grid cell
+    const cell = this.getOrCreateGridCell(position);
+    if (cell.samples.length === 0) {
+      return null;
+    }
+    
+    // Find the closest sample in the cell
+    let closestSample: TerrainDataCacheEntry | null = null;
+    let closestDistance = Number.MAX_VALUE;
+    
+    const x = 'z' in position ? position.x : position.x;
+    const z = 'z' in position ? position.z : position.y;
+    
+    for (const sample of cell.samples) {
+      const dx = sample.position.x - x;
+      const dz = sample.position.z - z;
+      const distSquared = dx * dx + dz * dz;
+      
+      if (distSquared < closestDistance) {
+        closestDistance = distSquared;
+        closestSample = sample;
+      }
+    }
+    
+    // Return if we found a sample within reasonable distance
+    if (closestSample && Math.sqrt(closestDistance) < this.spatialSamplingResolution * 1.5) {
+      closestSample.lastAccessTime = performance.now();
+      return closestSample;
+    }
+    
+    return null;
   }
   
   /**
@@ -176,6 +576,14 @@ export class TerrainCollider implements ITerrainCollider {
    * @returns The height at the given position, or null if outside terrain bounds
    */
   public getHeightAt(position: BABYLON.Vector2 | BABYLON.Vector3): number | null {
+    // First check the cache if enabled
+    if (this.useHeightCaching) {
+      const cachedSample = this.getClosestCachedSample(position);
+      if (cachedSample) {
+        return cachedSample.height;
+      }
+    }
+    
     // If we have heightmap data, use that for accurate height
     if (this.heightmapData) {
       return this.getHeightFromHeightmap(position);
@@ -187,7 +595,38 @@ export class TerrainCollider implements ITerrainCollider {
       const hit = this.scene?.pickWithRay(ray);
       
       if (hit && hit.hit && hit.pickedMesh === this.terrainMesh) {
-        return hit.pickedPoint?.y ?? null;
+        const height = hit.pickedPoint?.y ?? null;
+        
+        // Cache this result if caching is enabled
+        if (this.useHeightCaching && height !== null) {
+          const x = 'z' in position ? position.x : position.x;
+          const z = 'z' in position ? position.z : position.y;
+          
+          const cacheKey = `${x.toFixed(1)},${z.toFixed(1)}`;
+          const pos = new BABYLON.Vector3(x, height, z);
+          
+          // Get normal and material for complete cache entry
+          const normal = this.getSurfaceNormal(pos);
+          const materialType = this.getMaterialTypeAt(pos);
+          
+          const entry: TerrainDataCacheEntry = {
+            position: pos,
+            height,
+            normal,
+            lastAccessTime: performance.now(),
+            materialType
+          };
+          
+          this.terrainDataCache.set(cacheKey, entry);
+          
+          // Also add to grid cache
+          const cell = this.getOrCreateGridCell(position);
+          if (cell.samples.length < this.maxSamplesPerCell) {
+            cell.samples.push(entry);
+          }
+        }
+        
+        return height;
       }
     }
     
@@ -222,29 +661,29 @@ export class TerrainCollider implements ITerrainCollider {
       return null;
     }
     
-    // Get the indices of the surrounding heightmap points
-    const x1 = Math.floor(x);
-    const x2 = Math.ceil(x);
-    const z1 = Math.floor(z);
-    const z2 = Math.ceil(z);
+    // Get the integer coordinates
+    const x0 = Math.floor(x);
+    const z0 = Math.floor(z);
     
-    // Get the heights at the surrounding points
-    const h11 = heights[z1 * width + x1];
-    const h21 = heights[z1 * width + x2];
-    const h12 = heights[z2 * width + x1];
-    const h22 = heights[z2 * width + x2];
+    // Get the fractional parts
+    const xf = x - x0;
+    const zf = z - z0;
     
-    // Calculate the fractional position within the grid cell
-    const fx = x - x1;
-    const fz = z - z1;
+    // Get the heights of the surrounding points
+    const h00 = heights[z0 * width + x0];
+    const h10 = heights[z0 * width + (x0 + 1)];
+    const h01 = heights[(z0 + 1) * width + x0];
+    const h11 = heights[(z0 + 1) * width + (x0 + 1)];
     
     // Bilinear interpolation
-    const h1 = h11 * (1 - fx) + h21 * fx;
-    const h2 = h12 * (1 - fx) + h22 * fx;
-    const terrainHeight = h1 * (1 - fz) + h2 * fz;
+    const h0 = h00 * (1 - xf) + h10 * xf;
+    const h1 = h01 * (1 - xf) + h11 * xf;
+    const height = h0 * (1 - zf) + h1 * zf;
     
-    // Convert to world height
-    return terrainHeight * verticalScale;
+    // Apply vertical scale
+    const scaledHeight = height * verticalScale;
+    
+    return scaledHeight;
   }
   
   /**
@@ -679,11 +1118,17 @@ export class TerrainCollider implements ITerrainCollider {
     callback: (hit: { object: BABYLON.AbstractMesh; surfaceInfo: TerrainSurfaceInfo }) => void
   ): string {
     const id = uuidv4();
+    this.hitCallbacks.set(id, { id, callback });
     
-    this.hitCallbacks.set(id, {
-      id,
-      callback
-    });
+    // Create a disposable wrapper for the callback registration
+    const callbackWrapper = {
+      dispose: () => {
+        this.hitCallbacks.delete(id);
+      }
+    };
+    
+    // Track the callback
+    this.trackResource(callbackWrapper, ResourceType.EVENT_LISTENER, `terrainHitCallback_${id}`);
     
     return id;
   }
@@ -714,17 +1159,151 @@ export class TerrainCollider implements ITerrainCollider {
    * Cleans up resources used by the terrain collider.
    */
   public dispose(): void {
-    if (this.terrainImpostor) {
-      this.terrainImpostor.dispose();
-      this.terrainImpostor = null;
-    }
+    this.logger.debug('Disposing TerrainCollider');
     
+    // Dispose all tracked resources
+    const disposedCount = this.resourceTracker.disposeByGroup(this.resourceGroup);
+    this.logger.debug(`Disposed ${disposedCount} terrain collider resources`);
+    
+    // Reset all references
     this.terrainMesh = null;
+    this.terrainImpostor = null;
     this.heightmapData = null;
     this.terrainMaterials.clear();
     this.hitCallbacks.clear();
     this.scene = null;
     
-    console.log("TerrainCollider disposed");
+    this.logger.debug("TerrainCollider disposed");
+  }
+  
+  /**
+   * Track a resource with the ResourceTracker
+   * @param resource The resource to track
+   * @param type The type of resource
+   * @param id Optional identifier for the resource
+   * @returns The resource tracking ID
+   */
+  private trackResource(resource: any, type: ResourceType, id?: string): string {
+    return this.resourceTracker.track(resource, {
+      type,
+      id,
+      group: this.resourceGroup,
+      metadata: {
+        createdBy: 'TerrainCollider',
+        createdAt: Date.now()
+      }
+    });
+  }
+  
+  /**
+   * Log a debug message
+   * @param message The message to log
+   */
+  private logDebug(message: string): void {
+    this.logger.debug(message);
+  }
+  
+  /**
+   * Log a warning message
+   * @param message The message to log
+   */
+  private logWarning(message: string): void {
+    this.logger.warn(message);
+  }
+  
+  /**
+   * Log an error message
+   * @param message The message to log
+   */
+  private logError(message: string): void {
+    this.logger.error(message);
+  }
+  
+  /**
+   * Adapts the terrain collider quality based on current performance
+   */
+  private adaptQualityBasedOnPerformance(): void {
+    if (!this.scene || !this.adaptiveQuality) {
+      return;
+    }
+
+    // Get the current FPS
+    const fps = this.scene.getEngine().getFps();
+    
+    // Determine appropriate quality level based on FPS
+    let newQualityLevel = this.currentPerformanceLevel;
+    
+    if (fps < 15) {
+      // Very poor performance, reduce quality significantly
+      newQualityLevel = TerrainCollisionPerformanceLevel.VERY_LOW;
+    } else if (fps < 30) {
+      // Poor performance, reduce quality
+      newQualityLevel = TerrainCollisionPerformanceLevel.LOW;
+    } else if (fps < 45) {
+      // Acceptable performance but not great
+      newQualityLevel = TerrainCollisionPerformanceLevel.MEDIUM;
+    } else if (fps < 55) {
+      // Good performance
+      newQualityLevel = TerrainCollisionPerformanceLevel.HIGH;
+    } else {
+      // Excellent performance
+      newQualityLevel = TerrainCollisionPerformanceLevel.ULTRA;
+    }
+    
+    // Only update if quality level changed
+    if (newQualityLevel !== this.currentPerformanceLevel) {
+      this.setQualityLevel(newQualityLevel);
+      this.logger.debug(`Adapted terrain collision quality to ${TerrainCollisionPerformanceLevel[newQualityLevel]}`);
+    }
+  }
+  
+  /**
+   * Sets the quality level for terrain collision
+   * @param level The quality level to set
+   */
+  private setQualityLevel(level: TerrainCollisionPerformanceLevel): void {
+    this.currentPerformanceLevel = level;
+    
+    // Adjust parameters based on quality level
+    switch (level) {
+      case TerrainCollisionPerformanceLevel.ULTRA:
+        this.options.raySamples = 9;
+        this.useHeightCaching = true;
+        this.useNormalCaching = true;
+        this.useMaterialCaching = true;
+        this.spatialSamplingResolution = 1;
+        break;
+      case TerrainCollisionPerformanceLevel.HIGH:
+        this.options.raySamples = 5;
+        this.useHeightCaching = true;
+        this.useNormalCaching = true;
+        this.useMaterialCaching = true;
+        this.spatialSamplingResolution = 2;
+        break;
+      case TerrainCollisionPerformanceLevel.MEDIUM:
+        this.options.raySamples = 3;
+        this.useHeightCaching = true;
+        this.useNormalCaching = true;
+        this.useMaterialCaching = false;
+        this.spatialSamplingResolution = 3;
+        break;
+      case TerrainCollisionPerformanceLevel.LOW:
+        this.options.raySamples = 2;
+        this.useHeightCaching = true;
+        this.useNormalCaching = false;
+        this.useMaterialCaching = false;
+        this.spatialSamplingResolution = 4;
+        break;
+      case TerrainCollisionPerformanceLevel.VERY_LOW:
+        this.options.raySamples = 1;
+        this.useHeightCaching = false;
+        this.useNormalCaching = false;
+        this.useMaterialCaching = false;
+        this.spatialSamplingResolution = 5;
+        break;
+    }
+    
+    // Clear caches when changing quality level
+    this.clearCaches();
   }
 }

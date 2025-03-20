@@ -20,7 +20,7 @@ export class SceneTransitionManager {
   private transitionMaterial: BABYLON.Material | null = null;
   private transitionPlane: BABYLON.Mesh | null = null;
   private isTransitioning: boolean = false;
-  private logger: Logger | null = null;
+  private logger: Logger;
 
   /**
    * Creates a new SceneTransitionManager
@@ -29,14 +29,19 @@ export class SceneTransitionManager {
   constructor(engine: BABYLON.Engine) {
     this.engine = engine;
     
+    // Initialize default logger
+    this.logger = new Logger('SceneTransitionManager');
+    
     // Try to get logger from ServiceLocator
     try {
       const serviceLocator = ServiceLocator.getInstance();
       if (serviceLocator.has('logger')) {
         this.logger = serviceLocator.get<Logger>('logger');
+        // Add our context tag
+        this.logger.addTag('SceneTransitionManager');
       }
     } catch (e) {
-      console.warn('Logger not available for SceneTransitionManager');
+      this.logger.warn('Logger not available from ServiceLocator, using default logger');
     }
   }
 
@@ -89,7 +94,7 @@ export class SceneTransitionManager {
 
       return Promise.resolve();
     } catch (error) {
-      console.error('Transition failed:', error);
+      this.logger.error('Transition failed:', error as Error);
       // Fallback to direct switch
       this.switchRenderLoop(toScene);
       return Promise.reject(error);
@@ -151,12 +156,7 @@ export class SceneTransitionManager {
   ): Promise<void> {
     this.isTransitioning = true;
     
-    // Use info instead of debug since our logger interface doesn't have debug
-    if (this.logger) {
-      this.logger.info('Starting fade transition');
-    } else {
-      console.log('Starting fade transition');
-    }
+    this.logger.info('Starting fade transition');
 
     // Capture the current scene to a texture
     const texture = await this.captureSceneToTexture(fromScene);

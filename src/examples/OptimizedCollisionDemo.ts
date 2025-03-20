@@ -6,7 +6,9 @@
 import * as BABYLON from 'babylonjs';
 import { PhysicsSystem } from '../core/physics/PhysicsSystem';
 import { SpatialPartitioningCollisionSystem } from '../core/physics/SpatialPartitioningCollisionSystem';
+import { SpatialPartitioningCollisionSystemOptions } from '../core/physics/SpatialPartitioningCollisionSystemOptions';
 import { ServiceLocator } from '../core/base/ServiceLocator';
+import { Logger } from '../core/utils/Logger';
 
 /**
  * A demo of the optimized collision detection system
@@ -33,11 +35,29 @@ export class OptimizedCollisionDemo {
   private VISUALIZATION_ENABLED = true;
   private CELL_SIZE = 20;
   
+  // Logger
+  private logger: Logger;
+  
   /**
    * Creates a new demo
    * @param canvasId Canvas element ID
    */
   constructor(canvasId: string) {
+    // Initialize logger with default instance
+    this.logger = new Logger('OptimizedCollisionDemo');
+    
+    // Try to get the logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add context tag
+        this.logger.addTag('OptimizedCollisionDemo');
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to get logger from ServiceLocator: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    }
+    
     // Get the canvas element
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     if (!this.canvas) {
@@ -64,8 +84,13 @@ export class OptimizedCollisionDemo {
       visualize: this.VISUALIZATION_ENABLED,
       useSpatialPartitioning: this.USE_SPATIAL_PARTITIONING,
       visualizeBroadPhase: this.VISUALIZATION_ENABLED,
-      spatialGridUpdateInterval: 100
-    });
+      spatialGridUpdateInterval: 100,
+      maxObjectsPerCell: 10,
+      maxSubdivisionDepth: 5,
+      velocityBasedOptimization: true,
+      useSimplifiedDistantCollisions: true,
+      simplifiedCollisionDistance: 100
+    } as Partial<SpatialPartitioningCollisionSystemOptions>);
     
     // Initialize the collision system
     this.collisionSystem.initialize(this.physicsSystem);
@@ -101,7 +126,7 @@ export class OptimizedCollisionDemo {
     } else if (typeof (ServiceLocator as any).registerService === 'function') {
       (ServiceLocator as any).registerService(key, service);
     } else {
-      console.warn(`Could not register service '${key}' - no registration method found on ServiceLocator`);
+      this.logger.warn(`Could not register service '${key}' - no registration method found on ServiceLocator`);
     }
   }
   
@@ -262,7 +287,7 @@ export class OptimizedCollisionDemo {
    */
   private resetCollisionSystem(): void {
     // Dispose the current collision system
-    this.collisionSystem.destroy();
+    this.collisionSystem.dispose();
     
     // Create a new one with updated settings
     this.collisionSystem = new SpatialPartitioningCollisionSystem({
@@ -270,8 +295,13 @@ export class OptimizedCollisionDemo {
       visualize: this.VISUALIZATION_ENABLED,
       useSpatialPartitioning: this.USE_SPATIAL_PARTITIONING,
       visualizeBroadPhase: this.VISUALIZATION_ENABLED,
-      spatialGridUpdateInterval: 100
-    });
+      spatialGridUpdateInterval: 100,
+      maxObjectsPerCell: 10,
+      maxSubdivisionDepth: 5,
+      velocityBasedOptimization: true,
+      useSimplifiedDistantCollisions: true,
+      simplifiedCollisionDistance: 100
+    } as Partial<SpatialPartitioningCollisionSystemOptions>);
     
     // Initialize the new system
     this.collisionSystem.initialize(this.physicsSystem);
@@ -591,6 +621,8 @@ window.addEventListener('DOMContentLoaded', () => {
     // Create and start the demo
     new OptimizedCollisionDemo('renderCanvas');
   } else {
-    console.error('Canvas element not found! Add a canvas with id="renderCanvas" to the HTML.');
+    // Initialize a logger for error handling
+    const logger = new Logger('OptimizedCollisionDemo-Init');
+    logger.error('Canvas element not found! Add a canvas with id="renderCanvas" to the HTML.');
   }
 }); 

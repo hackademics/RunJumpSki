@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file tests/unit/core/ecs/components/ColliderComponent.test.ts
  * @description Unit tests for ColliderComponent
  */
@@ -177,7 +177,7 @@ describe('ColliderComponent', () => {
   
   test('should create collision mesh on initialization', () => {
     const component = new ColliderComponent({ type: ColliderType.Box });
-    component.init(entity);
+    component.initialize(entity);
     
     // Verify mesh was created
     expect(BABYLON.MeshBuilder.CreateBox).toHaveBeenCalled();
@@ -187,7 +187,7 @@ describe('ColliderComponent', () => {
   test('should create different collision mesh types', () => {
     // Box collider
     const boxComponent = new ColliderComponent({ type: ColliderType.Box });
-    boxComponent.init(entity);
+    boxcomponent.initialize(entity);
     expect(BABYLON.MeshBuilder.CreateBox).toHaveBeenCalled();
     
     // Reset call counts
@@ -195,7 +195,7 @@ describe('ColliderComponent', () => {
     
     // Sphere collider
     const sphereComponent = new ColliderComponent({ type: ColliderType.Sphere });
-    sphereComponent.init(entity);
+    spherecomponent.initialize(entity);
     expect(BABYLON.MeshBuilder.CreateSphere).toHaveBeenCalled();
     
     // Reset call counts
@@ -203,7 +203,7 @@ describe('ColliderComponent', () => {
     
     // Cylinder collider
     const cylinderComponent = new ColliderComponent({ type: ColliderType.Cylinder });
-    cylinderComponent.init(entity);
+    cylindercomponent.initialize(entity);
     expect(BABYLON.MeshBuilder.CreateCylinder).toHaveBeenCalled();
     
     // Reset call counts
@@ -211,13 +211,13 @@ describe('ColliderComponent', () => {
     
     // Capsule collider
     const capsuleComponent = new ColliderComponent({ type: ColliderType.Capsule });
-    capsuleComponent.init(entity);
+    capsulecomponent.initialize(entity);
     expect(BABYLON.MeshBuilder.CreateCapsule).toHaveBeenCalled();
   });
   
   test('should create physics impostor for collision mesh', () => {
     const component = new ColliderComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Verify physics impostor was created
     expect(BABYLON.PhysicsImpostor).toHaveBeenCalled();
@@ -225,7 +225,7 @@ describe('ColliderComponent', () => {
   
   test('should set and get size', () => {
     const component = new ColliderComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     const newSize = new BABYLON.Vector3(2, 3, 4);
     component.setSize(newSize);
@@ -238,7 +238,7 @@ describe('ColliderComponent', () => {
   
   test('should set and get offset', () => {
     const component = new ColliderComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     const newOffset = new BABYLON.Vector3(1, 2, 3);
     component.setOffset(newOffset);
@@ -251,7 +251,7 @@ describe('ColliderComponent', () => {
   
   test('should set and get visibility', () => {
     const component = new ColliderComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     component.setVisible(true);
     
@@ -265,7 +265,7 @@ describe('ColliderComponent', () => {
   
   test('should set and get trigger state', () => {
     const component = new ColliderComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Set physics impostor on mock mesh
     mockBoxMesh.physicsImpostor = mockImpostor;
@@ -278,7 +278,7 @@ describe('ColliderComponent', () => {
   
   test('should register collision callback', () => {
     const component = new ColliderComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Set physics impostor on mock mesh
     mockBoxMesh.physicsImpostor = mockImpostor;
@@ -296,7 +296,7 @@ describe('ColliderComponent', () => {
   
   test('should check if point is inside box collider', () => {
     const component = new ColliderComponent({ type: ColliderType.Box });
-    component.init(entity);
+    component.initialize(entity);
     
     // Point inside box
     expect(component.containsPoint(new BABYLON.Vector3(0, 0, 0))).toBe(true);
@@ -307,7 +307,7 @@ describe('ColliderComponent', () => {
   
   test('should check if point is inside sphere collider', () => {
     const component = new ColliderComponent({ type: ColliderType.Sphere });
-    component.init(entity);
+    component.initialize(entity);
     
     // Mock the check for sphere differently
     (BABYLON.Vector3.prototype as any).length = jest.fn()
@@ -325,7 +325,7 @@ describe('ColliderComponent', () => {
   
   test('should fit collider to a mesh', () => {
     const component = new ColliderComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     const targetMesh = mockBoxMesh;
     
@@ -338,7 +338,7 @@ describe('ColliderComponent', () => {
   
   test('should update transform from entity', () => {
     const component = new ColliderComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Spy on actual methods
     const mockCopyFrom = jest.fn();
@@ -353,7 +353,7 @@ describe('ColliderComponent', () => {
   
   test('should update transform during update', () => {
     const component = new ColliderComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Spy on updateTransform
     const updateSpy = jest.spyOn(component, 'updateTransform');
@@ -367,7 +367,7 @@ describe('ColliderComponent', () => {
   
   test('should not update when disabled', () => {
     const component = new ColliderComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Spy on updateTransform
     const updateSpy = jest.spyOn(component, 'updateTransform');
@@ -384,7 +384,7 @@ describe('ColliderComponent', () => {
   
   test('should clean up resources on dispose', () => {
     const component = new ColliderComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Get a reference to the mesh
     const mesh = component.getCollisionMesh();
@@ -398,4 +398,5 @@ describe('ColliderComponent', () => {
     expect(component.getCollisionMesh()).toBeNull();
   });
 });
+
 

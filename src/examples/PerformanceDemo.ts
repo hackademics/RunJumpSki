@@ -4,16 +4,21 @@
  */
 
 import * as BABYLON from 'babylonjs';
-import { ServiceLocator } from '../core/ServiceLocator';
+import { ServiceLocator } from '../core/base/ServiceLocator';
 import { IPhysicsSystem } from '../core/physics/IPhysicsSystem';
+import { PhysicsSystem } from '../core/physics/PhysicsSystem';
 import { ICollisionSystem } from '../core/physics/ICollisionSystem';
+import { CollisionSystem } from '../core/physics/CollisionSystem';
 import { PooledProjectilePhysics } from '../core/physics/PooledProjectilePhysics';
 import { PooledParticleSystemManager } from '../core/renderer/particles/PooledParticleSystemManager';
 import { ParticleEffectType } from '../core/renderer/particles/IParticleSystemManager';
 import { AdaptiveRenderingSystem, QualityLevel } from '../core/renderer/AdaptiveRenderingSystem';
 import { PerformanceMetricsManager } from '../core/debug/metrics/PerformanceMetricsManager';
 import { ITerrainRenderer } from '../core/renderer/terrain/ITerrainRenderer';
+import { TerrainRenderer } from '../core/renderer/terrain/TerrainRenderer';
 import { IPostProcessingManager } from '../core/renderer/effects/IPostProcessingManager';
+import { PostProcessingManager } from '../core/renderer/effects/PostProcessingManager';
+import { Logger } from '../core/utils/Logger';
 
 /**
  * Demo class showing all performance optimizations working together
@@ -49,11 +54,29 @@ export class PerformanceDemo {
     [QualityLevel.ULTRA]: 'Ultra'
   };
   
+  // Logger
+  private logger: Logger;
+  
   /**
    * Constructor
    * @param canvasId ID of the canvas element
    */
   constructor(canvasId: string) {
+    // Initialize logger with default instance
+    this.logger = new Logger('PerformanceDemo');
+    
+    // Try to get the logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add context tag
+        this.logger.addTag('PerformanceDemo');
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to get logger from ServiceLocator: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    }
+    
     // Get the canvas
     this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     if (!this.canvas) {
@@ -81,11 +104,19 @@ export class PerformanceDemo {
     
     // Get required systems from ServiceLocator if available,
     // otherwise create them directly for the demo
-    this.physicsSystem = ServiceLocator.resolve<IPhysicsSystem>('IPhysicsSystem') || 
-      this.createPhysicsSystem();
-    
-    this.collisionSystem = ServiceLocator.resolve<ICollisionSystem>('ICollisionSystem') || 
-      this.createCollisionSystem();
+    try {
+      this.physicsSystem = ServiceLocator.getInstance().has(PhysicsSystem.name) ? 
+        ServiceLocator.getInstance().get<IPhysicsSystem>(PhysicsSystem.name) : 
+        this.createPhysicsSystem();
+        
+      this.collisionSystem = ServiceLocator.getInstance().has(CollisionSystem.name) ? 
+        ServiceLocator.getInstance().get<ICollisionSystem>(CollisionSystem.name) : 
+        this.createCollisionSystem();
+    } catch (e) {
+      this.logger.warn("Failed to resolve systems from ServiceLocator, creating default instances");
+      this.physicsSystem = this.createPhysicsSystem();
+      this.collisionSystem = this.createCollisionSystem();
+    }
     
     // Create performance metrics manager
     this.metricsManager = new PerformanceMetricsManager(this.scene);
@@ -100,8 +131,17 @@ export class PerformanceDemo {
     this.pooledParticleManager.initialize(this.scene);
     
     // Resolve optional systems
-    this.terrainRenderer = ServiceLocator.resolve<ITerrainRenderer>('ITerrainRenderer');
-    this.postProcessingManager = ServiceLocator.resolve<IPostProcessingManager>('IPostProcessingManager');
+    try {
+      this.terrainRenderer = ServiceLocator.getInstance().has(TerrainRenderer.name) ? 
+        ServiceLocator.getInstance().get<ITerrainRenderer>(TerrainRenderer.name) : 
+        undefined;
+        
+      this.postProcessingManager = ServiceLocator.getInstance().has(PostProcessingManager.name) ? 
+        ServiceLocator.getInstance().get<IPostProcessingManager>(PostProcessingManager.name) : 
+        undefined;
+    } catch (e) {
+      this.logger.warn("Failed to resolve optional systems from ServiceLocator");
+    }
     
     // Create adaptive rendering system
     this.adaptiveRenderingSystem = new AdaptiveRenderingSystem(
@@ -123,7 +163,7 @@ export class PerformanceDemo {
     
     // Set up quality change callback
     this.adaptiveRenderingSystem.onQualityChange((newLevel, oldLevel) => {
-      console.log(`Quality changed from ${this.qualityLabels[oldLevel]} to ${this.qualityLabels[newLevel]}`);
+      this.logger.info(`Quality changed from ${this.qualityLabels[oldLevel]} to ${this.qualityLabels[newLevel]}`);
       this.updateStats();
     });
     
@@ -147,7 +187,7 @@ export class PerformanceDemo {
    * Create a physics system for the demo if not available from ServiceLocator
    */
   private createPhysicsSystem(): IPhysicsSystem {
-    console.warn('Creating minimal physics system for demo - full functionality may not be available');
+    this.logger.warn('Creating minimal physics system for demo - full functionality may not be available');
     
     // Initialize Babylon.js CannonJS plugin
     const gravityVector = new BABYLON.Vector3(0, -9.81, 0);
@@ -160,18 +200,31 @@ export class PerformanceDemo {
       createImpostor: (mesh, type, options) => {
         return new BABYLON.PhysicsImpostor(mesh, type, options, this.scene);
       },
-      getImpostor: () => undefined,
-      removeImpostor: () => {},
       applyForce: () => {},
       applyImpulse: () => {},
-      setLinearVelocity: () => {},
-      setAngularVelocity: () => {},
       getPhysicsEngine: () => this.scene.getPhysicsEngine() || null,
-      isEnabled: () => true,
-      setEnabled: () => {},
       update: () => {},
-      raycast: () => null,
-      dispose: () => {}
+      dispose: () => {},
+      // Required methods from IPhysicsSystem
+      setGravity: () => {},
+      getGravity: () => new BABYLON.Vector3(0, -9.81, 0),
+      getDefaultFriction: () => 0.2,
+      setDefaultFriction: () => {},
+      getDefaultRestitution: () => 0.2,
+      setDefaultRestitution: () => {},
+      getTimeScale: () => 1.0,
+      setTimeScale: () => {},
+      enable: () => {},
+      disable: () => {},
+      isDeterministic: () => false,
+      setDeterministic: () => {},
+      showCollisionWireframes: () => {},
+      createJoint: () => new BABYLON.PhysicsJoint(BABYLON.PhysicsJoint.BallAndSocketJoint, {
+        mainPivot: BABYLON.Vector3.Zero(),
+        connectedPivot: BABYLON.Vector3.Zero()
+      }),
+      registerOnCollide: () => {},
+      isEnabled: () => true
     };
   }
   
@@ -179,19 +232,20 @@ export class PerformanceDemo {
    * Create a collision system for the demo if not available from ServiceLocator
    */
   private createCollisionSystem(): ICollisionSystem {
-    console.warn('Creating minimal collision system for demo - full functionality may not be available');
+    this.logger.warn('Creating minimal collision system for demo - full functionality may not be available');
     
     // Return a minimal implementation
     return {
       initialize: () => {},
       registerCollisionHandler: () => 'handler-id',
       unregisterCollisionHandler: () => {},
-      checkCollision: () => false,
-      getColliding: () => [],
-      isEnabled: () => true,
-      setEnabled: () => {},
+      areColliding: () => false,
       update: () => {},
-      dispose: () => {}
+      dispose: () => {},
+      // Required methods from ICollisionSystem
+      registerTriggerZone: () => 'trigger-id',
+      unregisterTriggerZone: () => {},
+      raycast: () => null
     };
   }
   
@@ -387,16 +441,12 @@ export class PerformanceDemo {
       }
     );
     
-    // Create trail effect
-    if (this.pooledProjectilePhysics.getProjectileState(projectileId)?.mesh) {
-      const mesh = this.pooledProjectilePhysics.getProjectileState(projectileId)?.mesh;
-      
-      if (mesh) {
-        this.pooledParticleManager.createProjectileTrailEffect(mesh, {
-          emitRate: 50,
-          lifetime: 1.0
-        });
-      }
+    // Get the internal projectile instance using direct access from the PooledProjectilePhysics
+    const internalProjectile = (this.pooledProjectilePhysics as any).activeProjectiles?.get(projectileId);
+    if (internalProjectile && internalProjectile.mesh) {
+      this.pooledParticleManager.createProjectileTrailEffect(internalProjectile.mesh, {
+        emitRate: 50
+      });
     }
     
     this.projectileCount++;
@@ -455,7 +505,7 @@ export class PerformanceDemo {
    * Dispose the demo and clean up resources
    */
   public dispose(): void {
-    this.pooledProjectilePhysics.destroy();
+    this.pooledProjectilePhysics.dispose();
     this.pooledParticleManager.dispose();
     this.scene.dispose();
     this.engine.dispose();
@@ -470,8 +520,12 @@ window.addEventListener('DOMContentLoaded', () => {
     // Store for access in console
     (window as any).performanceDemo = demo;
     
-    console.log('Performance Demo initialized! Use the UI to control the demo or access the demo through console as window.performanceDemo');
+    // Initialize a logger for this context
+    const logger = new Logger('PerformanceDemo-Init');
+    logger.info('Performance Demo initialized! Use the UI to control the demo or access the demo through console as window.performanceDemo');
   } catch (e) {
-    console.error('Failed to initialize Performance Demo:', e);
+    // Initialize a logger for error handling
+    const logger = new Logger('PerformanceDemo-Init');
+    logger.error('Failed to initialize Performance Demo:', e instanceof Error ? e.message : String(e));
   }
 }); 

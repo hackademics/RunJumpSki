@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file src/core/ecs/components/PhysicsComponent.ts
  * @description Implementation of PhysicsComponent for physical behavior
  */
@@ -9,6 +9,8 @@ import { IEntity } from '../IEntity';
 import { IPhysicsComponent } from './IPhysicsComponent';
 import { ITransformComponent } from './ITransformComponent';
 import { IMeshComponent } from './IMeshComponent';
+import { Logger } from '../../utils/Logger';
+import { ServiceLocator } from '../../base/ServiceLocator';
 
 /**
  * Physics impostor types
@@ -76,7 +78,7 @@ export interface PhysicsComponentOptions {
   /**
    * Whether to create the impostor immediately on initialization
    */
-  createImpostorOnInit?: boolean;
+  createImpostorOnInitialize?: boolean;
 }
 
 /**
@@ -92,7 +94,7 @@ export const DEFAULT_PHYSICS_OPTIONS: PhysicsComponentOptions = {
   linearVelocity: new BABYLON.Vector3(0, 0, 0),
   angularVelocity: new BABYLON.Vector3(0, 0, 0),
   autoSyncTransform: true,
-  createImpostorOnInit: true
+  createImpostorOnInitialize: true
 };
 
 // Constant for trigger flag since it doesn't exist in BabylonJS typings
@@ -161,7 +163,7 @@ export class PhysicsComponent extends Component implements IPhysicsComponent {
   /**
    * Whether to create impostor on initialization
    */
-  private createImpostorOnInit: boolean;
+  private createImpostorOnInitialize: boolean;
   
   /**
    * Callback for collision events
@@ -179,10 +181,30 @@ export class PhysicsComponent extends Component implements IPhysicsComponent {
   private lockedRotationAxes: { x: boolean, y: boolean, z: boolean } = { x: false, y: false, z: false };
   
   /**
+   * Logger instance
+   */
+  protected logger: Logger;
+  
+  /**
    * Create a new PhysicsComponent
    */
   constructor(options: Partial<PhysicsComponentOptions> = {}) {
     super({ type: 'physics' });
+    
+    // Initialize logger with default instance
+    this.logger = new Logger('PhysicsComponent');
+    
+    // Try to get the logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add context tag
+        this.logger.addTag('PhysicsComponent');
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to get logger from ServiceLocator: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    }
     
     // Merge with default options
     const config = { ...DEFAULT_PHYSICS_OPTIONS, ...options };
@@ -196,16 +218,18 @@ export class PhysicsComponent extends Component implements IPhysicsComponent {
     this.linearVelocity = config.linearVelocity!.clone();
     this.angularVelocity = config.angularVelocity!.clone();
     this.autoSyncTransform = config.autoSyncTransform!;
-    this.createImpostorOnInit = config.createImpostorOnInit!;
+    this.createImpostorOnInitialize = config.createImpostorOnInitialize!;
+    
+    this.logger.debug(`Physics component created with mass=${this.mass}, type=${this.impostorType}`);
   }
   
   /**
    * Initialize the component
    */
-  public override init(entity: IEntity): void {
-    super.init(entity);
+  public override initialize(entity: IEntity): void {
+    super.initialize(entity);
     
-    if (this.createImpostorOnInit) {
+    if (this.createImpostorOnInitialize) {
       this.createImpostor();
     }
   }
@@ -253,7 +277,7 @@ export class PhysicsComponent extends Component implements IPhysicsComponent {
     const meshComponent = this.entity.getComponent<IMeshComponent>('mesh');
     
     if (!transformComponent) {
-      console.error('PhysicsComponent requires a TransformComponent on the entity');
+      this.logger.error(`PhysicsComponent requires a TransformComponent on the entity ${this.entity.id}`);
       return;
     }
     
@@ -293,7 +317,7 @@ export class PhysicsComponent extends Component implements IPhysicsComponent {
     }
     
     if (!mesh) {
-      console.error('Failed to get or create a mesh for physics impostor');
+      this.logger.error(`Failed to get or create a mesh for physics impostor for entity ${this.entity.id}`);
       return;
     }
     
@@ -720,4 +744,7 @@ export class PhysicsComponent extends Component implements IPhysicsComponent {
     }
   }
 }
+
+
+
 

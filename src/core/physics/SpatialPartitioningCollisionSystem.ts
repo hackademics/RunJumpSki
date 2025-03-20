@@ -12,47 +12,85 @@ import { IPhysicsSystem } from './IPhysicsSystem';
 import { SpatialPartitioning, SpatialPartitioningOptions } from '../ecs/SpatialPartitioning';
 import { CollisionInfo, CollisionFilter } from './ICollisionSystem';
 import { IEntity } from '../ecs/IEntity';
+import { Logger } from '../utils/Logger';
+import { ServiceLocator } from '../base/ServiceLocator';
 
 /**
- * Options for configuring the spatial partitioning collision system
+ * Configuration options for the spatial partitioning collision system
  */
-export interface SpatialPartitioningCollisionOptions extends SpatialPartitioningOptions {
-  /**
-   * Whether to use spatial partitioning for broad phase collision detection
-   * Can be disabled for debug purposes to compare performance
-   */
+export interface SpatialPartitioningCollisionSystemOptions {
+  /** Size of each grid cell in the spatial partitioning grid */
+  cellSize: number;
+  /** Maximum number of objects per cell before subdivision */
+  maxObjectsPerCell: number;
+  /** Whether to use spatial partitioning or standard collision detection */
   useSpatialPartitioning: boolean;
-  
-  /**
-   * Whether to visualize potential collision pairs during the broad phase
-   */
-  visualizeBroadPhase: boolean;
-  
-  /**
-   * How frequently (in ms) to update the spatial grid with object positions
-   * Lower values provide more accuracy but higher CPU cost
-   */
-  spatialGridUpdateInterval: number;
+  /** Maximum subdivision depth for spatial partitioning */
+  maxSubdivisionDepth: number;
+  /** Whether to optimize collision checks based on object velocity */
+  velocityBasedOptimization: boolean;
+  /** Whether to use simplified collision shapes for distant objects */
+  useSimplifiedDistantCollisions: boolean;
+  /** Distance threshold for simplified collision shapes */
+  simplifiedCollisionDistance: number;
+  /** Whether to use adaptive grid updates based on scene changes */
+  useAdaptiveUpdating?: boolean;
+  /** Threshold for adaptive updates (proportion of moved objects needed to trigger update) */
+  adaptiveUpdateThreshold?: number;
+  /** Whether to use frustum culling to optimize collision checks */
+  useFrustumCulling?: boolean;
+  /** Interval (in ms) between spatial grid full updates */
+  spatialGridUpdateInterval?: number;
+  /** Factor by which to expand the grid beyond object bounds */
+  gridExpansionFactor?: number;
+  /** Whether to visualize the broad phase of collision detection */
+  visualizeBroadPhase?: boolean;
+  /** Whether to visualize the spatial grid for debugging */
+  visualize?: boolean;
 }
 
 /**
  * Default options for spatial partitioning collision system
  */
-export const DEFAULT_SPATIAL_COLLISION_OPTIONS: SpatialPartitioningCollisionOptions = {
-  cellSize: 20,
-  maxEntitiesPerCell: 10,
-  maxDepth: 5,
-  visualize: false,
+export const DEFAULT_SPATIAL_PARTITIONING_OPTIONS: SpatialPartitioningCollisionSystemOptions = {
+  cellSize: 50,
+  maxObjectsPerCell: 10,
   useSpatialPartitioning: true,
+  maxSubdivisionDepth: 5,
+  velocityBasedOptimization: true,
+  useSimplifiedDistantCollisions: true,
+  simplifiedCollisionDistance: 100,
+  useAdaptiveUpdating: true,
+  adaptiveUpdateThreshold: 0.5,
+  useFrustumCulling: true,
+  spatialGridUpdateInterval: 1000,
+  gridExpansionFactor: 1.2,
   visualizeBroadPhase: false,
-  spatialGridUpdateInterval: 100 // Update spatial grid every 100ms
+  visualize: false
 };
+
+/**
+ * Performance level for the collision system
+ */
+export enum CollisionPerformanceLevel {
+  ULTRA = 0,
+  HIGH = 1,
+  MEDIUM = 2,
+  LOW = 3,
+  VERY_LOW = 4
+}
 
 /**
  * Entity wrapper that holds physics impostor for spatial partitioning
  */
 interface PhysicsEntity extends IEntity {
   impostor: BABYLON.PhysicsImpostor;
+  id: string;
+  getComponent<T>(componentType: string): T | undefined;
+  addComponent<T>(component: T): T;
+  removeComponent(componentType: string): boolean;
+  update(deltaTime: number): void;
+  dispose(): void;
 }
 
 /**
@@ -61,26 +99,51 @@ interface PhysicsEntity extends IEntity {
  */
 export class SpatialPartitioningCollisionSystem extends CollisionSystem {
   private spatialPartitioning: SpatialPartitioning;
-  private options: SpatialPartitioningCollisionOptions;
+  private options: SpatialPartitioningCollisionSystemOptions;
   private impostorToPositionMap: Map<BABYLON.PhysicsImpostor, BABYLON.Vector3> = new Map();
   private lastSpatialUpdateTime: number = 0;
   private broadPhaseVisualization: BABYLON.Mesh[] = [];
   private scene: BABYLON.Scene | null = null;
+  private activeCamera: BABYLON.Camera | null = null;
+  private frustumPlanes: BABYLON.Plane[] = [];
+  private impostorMovementMap: Map<BABYLON.PhysicsImpostor, number> = new Map();
+  private needsFullUpdate: boolean = true;
+  private logger: Logger;
+  private grid: Map<string, BABYLON.AbstractMesh[]> = new Map();
+  private currentPerformanceLevel: CollisionPerformanceLevel = CollisionPerformanceLevel.HIGH;
+  private adaptiveQuality: boolean = false;
+  private lastAdaptiveCheck: number = 0;
+  private adaptiveCheckInterval: number = 2000; // ms
 
   /**
    * Creates a new collision system with spatial partitioning optimization
    * @param options Configuration options for spatial partitioning
    */
-  constructor(options: Partial<SpatialPartitioningCollisionOptions> = {}) {
+  constructor(options: Partial<SpatialPartitioningCollisionSystemOptions> = {}) {
     super();
-    this.options = { ...DEFAULT_SPATIAL_COLLISION_OPTIONS, ...options };
+    this.options = { ...DEFAULT_SPATIAL_PARTITIONING_OPTIONS, ...options };
     this.spatialPartitioning = new SpatialPartitioning({
       cellSize: this.options.cellSize,
-      maxEntitiesPerCell: this.options.maxEntitiesPerCell,
-      maxDepth: this.options.maxDepth,
-      visualize: this.options.visualize
+      maxEntitiesPerCell: this.options.maxObjectsPerCell,
+      maxDepth: this.options.maxSubdivisionDepth,
+      visualize: false
     });
     this.impostorToPositionMap = new Map();
+    this.impostorMovementMap = new Map();
+    
+    // Initialize logger
+    this.logger = new Logger('SpatialPartitioningCollisionSystem');
+    
+    // Try to get the logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        this.logger.addTag('SpatialPartitioningCollisionSystem');
+      }
+    } catch (e) {
+      // Use default logger if unavailable
+    }
   }
 
   /**
@@ -95,12 +158,26 @@ export class SpatialPartitioningCollisionSystem extends CollisionSystem {
     const physicsSystemInstance = physicsSystem as unknown as { getScene: () => BABYLON.Scene };
     if (typeof physicsSystemInstance.getScene === 'function') {
       this.scene = physicsSystemInstance.getScene();
+      
+      // Get the active camera
+      if (this.scene) {
+        this.activeCamera = this.scene.activeCamera;
+        
+        // Listen for camera changes
+        this.scene.onActiveCameraChanged.add(() => {
+          this.activeCamera = this.scene?.activeCamera || null;
+          this.updateFrustumPlanes();
+        });
+      }
     }
     
     // Initialize spatial partitioning with the scene
     if (this.scene) {
       this.spatialPartitioning.initialize(this.scene);
+      this.updateFrustumPlanes();
     }
+    
+    this.logger.debug("SpatialPartitioningCollisionSystem initialized");
   }
 
   /**
@@ -112,14 +189,33 @@ export class SpatialPartitioningCollisionSystem extends CollisionSystem {
     this.lastSpatialUpdateTime += deltaTime * 1000; // Convert to ms
     
     // Clear previous visualizations if enabled
-    if (this.options.visualizeBroadPhase) {
+    if (this.options.useSpatialPartitioning) {
       this.clearBroadPhaseVisualization();
     }
     
-    // Update spatial grid if it's time
-    if (this.lastSpatialUpdateTime >= this.options.spatialGridUpdateInterval) {
+    let updateGrid = false;
+    
+    // Check if it's time for a scheduled update
+    if (this.lastSpatialUpdateTime >= (this.options.spatialGridUpdateInterval || 1000)) {
+      updateGrid = true;
+    }
+    
+    // If adaptive updating is enabled, check if any objects moved significantly
+    if (this.options.useAdaptiveUpdating && !updateGrid) {
+      updateGrid = this.checkForSignificantMovement();
+    }
+    
+    // Update frustum planes if camera moved and we're using frustum culling
+    if (this.options.useFrustumCulling && this.activeCamera) {
+      // Always update frustum planes when using frustum culling since camera might have moved
+      this.updateFrustumPlanes();
+    }
+    
+    // Update the spatial grid if needed
+    if (updateGrid) {
       this.updateSpatialGrid();
       this.lastSpatialUpdateTime = 0;
+      this.needsFullUpdate = false;
     }
     
     // If spatial partitioning is enabled, use it for optimized collision detection
@@ -132,46 +228,229 @@ export class SpatialPartitioningCollisionSystem extends CollisionSystem {
   }
 
   /**
+   * Check if any important objects have moved significantly
+   */
+  private checkForSignificantMovement(): boolean {
+    let significantMovement = false;
+    
+    // Skip if there's no scene or the need for a full update is already determined
+    if (!this.scene || this.needsFullUpdate) {
+      return true;
+    }
+    
+    // Get all physics impostors in the scene
+    const physicsEngine = this.scene.getPhysicsEngine();
+    if (!physicsEngine) {
+      return false;
+    }
+    
+    // Use a type assertion for the physics engine to access getImpostors
+    const impostors: BABYLON.PhysicsImpostor[] = 
+      (physicsEngine as any).getImpostors ? 
+      (physicsEngine as any).getImpostors() : 
+      [];
+      
+    const threshold = this.options.adaptiveUpdateThreshold || 0.5;
+    
+    // Check if any important objects moved significantly
+    for (const impostor of impostors) {
+      if (!impostor.object) continue;
+      
+      const currentPosition = this.getImpostorPosition(impostor);
+      const lastPosition = this.impostorToPositionMap.get(impostor);
+      
+      if (lastPosition) {
+        const distance = BABYLON.Vector3.Distance(currentPosition, lastPosition);
+        
+        // Update tracking of how much this object has moved
+        const totalMovement = (this.impostorMovementMap.get(impostor) || 0) + distance;
+        this.impostorMovementMap.set(impostor, totalMovement);
+        
+        // If this object has moved more than our threshold, we need an update
+        if (totalMovement > threshold) {
+          significantMovement = true;
+          break;
+        }
+      }
+    }
+    
+    return significantMovement;
+  }
+  
+  /**
    * Updates the spatial grid with current object positions
    */
   private updateSpatialGrid(): void {
-    // Clear the grid
-    this.spatialPartitioning = new SpatialPartitioning({
-      cellSize: this.options.cellSize,
-      maxEntitiesPerCell: this.options.maxEntitiesPerCell,
-      maxDepth: this.options.maxDepth,
-      visualize: this.options.visualize
-    });
-    
-    if (this.scene) {
-      this.spatialPartitioning.initialize(this.scene);
+    // Skip if there's no scene
+    if (!this.scene) {
+      return;
     }
     
-    // Get all physics impostors in the scene and add them to the grid
-    if (this.scene && this.scene.physicsEnabled) {
-      const physicsEngine = this.scene.getPhysicsEngine();
-      if (physicsEngine) {
-        const impostors = physicsEngine.getImpostors ? physicsEngine.getImpostors() : [];
+    // Clear existing spatial data
+    this.spatialPartitioning.clear();
+    this.impostorToPositionMap.clear();
+    this.impostorMovementMap.clear();
+    
+    // Get all physics impostors in the scene
+    const physicsEngine = this.scene.getPhysicsEngine();
+    if (!physicsEngine) {
+      return;
+    }
+    
+    // Use a type assertion for the physics engine to access getImpostors
+    const impostors: BABYLON.PhysicsImpostor[] = 
+      (physicsEngine as any).getImpostors ? 
+      (physicsEngine as any).getImpostors() : 
+      [];
+    
+    // Add each impostor to the spatial partitioning
+    for (const impostor of impostors) {
+      if (!impostor.object) continue;
+      
+      const position = this.getImpostorPosition(impostor);
+      const boundingInfo = this.getImpostorBoundingInfo(impostor);
+      
+      if (boundingInfo) {
+        // Store current position for movement tracking
+        this.impostorToPositionMap.set(impostor, position.clone());
         
-        impostors.forEach(impostor => {
-          const position = this.getImpostorPosition(impostor);
-          this.impostorToPositionMap.set(impostor, position);
-          
-          // Create a wrapper entity that our spatial partitioning can use
-          const entity: PhysicsEntity = {
-            id: this.getImpostorId(impostor),
-            impostor: impostor,
-            getComponent: () => null,
-            addComponent: () => null,
-            removeComponent: () => {},
-            update: () => {},
-            dispose: () => {}
-          };
-          
-          this.spatialPartitioning.insertEntity(entity, position);
-        });
+        // Reset movement tracking
+        this.impostorMovementMap.set(impostor, 0);
+        
+        // Calculate bounds for spatial partitioning
+        const minPoint = boundingInfo.min;
+        const maxPoint = boundingInfo.max;
+        
+        // Skip frustum culled objects if enabled
+        if (this.options.useFrustumCulling && !this.isInFrustum(boundingInfo)) {
+          continue;
+        }
+        
+        // Create a wrapper entity that conforms to IEntity for spatial partitioning
+        const entity: PhysicsEntity = {
+          id: this.getImpostorId(impostor),
+          getComponent: <T>(componentType: string): T | undefined => undefined,
+          addComponent: <T>(component: T): T => component,
+          removeComponent: (componentType: string): boolean => false,
+          update: (deltaTime: number): void => {},
+          dispose: (): void => {},
+          impostor: impostor
+        };
+        
+        // Add to spatial partitioning
+        this.spatialPartitioning.insertEntity(entity, position);
       }
     }
+  }
+
+  /**
+   * Updates the frustum planes based on the current camera
+   */
+  private updateFrustumPlanes(): void {
+    if (this.scene && this.activeCamera) {
+      // Extract frustum planes from the current camera view
+      const matrix = this.activeCamera.getTransformationMatrix();
+      if (matrix) {
+        // For TypeScript compatibility, we'll extract the frustum planes manually
+        // instead of using the static GetPlanes method which has type issues
+        this.frustumPlanes = [];
+        
+        // Extract the planes from the camera's view projection matrix
+        const viewProjection = matrix.clone();
+        if (this.activeCamera.getProjectionMatrix) {
+          const projection = this.activeCamera.getProjectionMatrix();
+          viewProjection.multiplyToRef(projection, viewProjection);
+        }
+        
+        // Near plane
+        this.frustumPlanes.push(new BABYLON.Plane(
+          viewProjection.m[3] + viewProjection.m[2],
+          viewProjection.m[7] + viewProjection.m[6],
+          viewProjection.m[11] + viewProjection.m[10],
+          viewProjection.m[15] + viewProjection.m[14]
+        ).normalize());
+        
+        // Far plane
+        this.frustumPlanes.push(new BABYLON.Plane(
+          viewProjection.m[3] - viewProjection.m[2],
+          viewProjection.m[7] - viewProjection.m[6],
+          viewProjection.m[11] - viewProjection.m[10],
+          viewProjection.m[15] - viewProjection.m[14]
+        ).normalize());
+        
+        // Left plane
+        this.frustumPlanes.push(new BABYLON.Plane(
+          viewProjection.m[3] + viewProjection.m[0],
+          viewProjection.m[7] + viewProjection.m[4],
+          viewProjection.m[11] + viewProjection.m[8],
+          viewProjection.m[15] + viewProjection.m[12]
+        ).normalize());
+        
+        // Right plane
+        this.frustumPlanes.push(new BABYLON.Plane(
+          viewProjection.m[3] - viewProjection.m[0],
+          viewProjection.m[7] - viewProjection.m[4],
+          viewProjection.m[11] - viewProjection.m[8],
+          viewProjection.m[15] - viewProjection.m[12]
+        ).normalize());
+        
+        // Top plane
+        this.frustumPlanes.push(new BABYLON.Plane(
+          viewProjection.m[3] - viewProjection.m[1],
+          viewProjection.m[7] - viewProjection.m[5],
+          viewProjection.m[11] - viewProjection.m[9],
+          viewProjection.m[15] - viewProjection.m[13]
+        ).normalize());
+        
+        // Bottom plane
+        this.frustumPlanes.push(new BABYLON.Plane(
+          viewProjection.m[3] + viewProjection.m[1],
+          viewProjection.m[7] + viewProjection.m[5],
+          viewProjection.m[11] + viewProjection.m[9],
+          viewProjection.m[15] + viewProjection.m[13]
+        ).normalize());
+      }
+    }
+  }
+  
+  /**
+   * Check if a bounding box is in the camera frustum
+   */
+  private isInFrustum(boundingInfo: { min: BABYLON.Vector3, max: BABYLON.Vector3 }): boolean {
+    if (!this.activeCamera || this.frustumPlanes.length === 0) {
+      return true;
+    }
+    
+    // Create bounding box corners
+    const corners = [
+      new BABYLON.Vector3(boundingInfo.min.x, boundingInfo.min.y, boundingInfo.min.z),
+      new BABYLON.Vector3(boundingInfo.max.x, boundingInfo.min.y, boundingInfo.min.z),
+      new BABYLON.Vector3(boundingInfo.min.x, boundingInfo.max.y, boundingInfo.min.z),
+      new BABYLON.Vector3(boundingInfo.max.x, boundingInfo.max.y, boundingInfo.min.z),
+      new BABYLON.Vector3(boundingInfo.min.x, boundingInfo.min.y, boundingInfo.max.z),
+      new BABYLON.Vector3(boundingInfo.max.x, boundingInfo.min.y, boundingInfo.max.z),
+      new BABYLON.Vector3(boundingInfo.min.x, boundingInfo.max.y, boundingInfo.max.z),
+      new BABYLON.Vector3(boundingInfo.max.x, boundingInfo.max.y, boundingInfo.max.z)
+    ];
+    
+    // Check if any corner is in the frustum
+    for (const plane of this.frustumPlanes) {
+      let allOut = true;
+      
+      for (const corner of corners) {
+        // Dot product for point-plane distance
+        if (plane.signedDistanceTo(corner) >= 0) {
+          allOut = false;
+          break;
+        }
+      }
+      
+      if (allOut) {
+        return false;
+      }
+    }
+    
+    return true;
   }
 
   /**
@@ -506,14 +785,14 @@ export class SpatialPartitioningCollisionSystem extends CollisionSystem {
   /**
    * Destroys the collision system and cleans up resources
    */
-  public override destroy(): void {
+  public override dispose(): void {
     // Clear visualizations
     this.clearBroadPhaseVisualization();
     
     // Clear maps
     this.impostorToPositionMap.clear();
     
-    super.destroy();
+    super.dispose();
   }
 
   // The following methods are for internal testing/debugging
@@ -540,8 +819,10 @@ export class SpatialPartitioningCollisionSystem extends CollisionSystem {
    * @internal
    */
   protected getCollisionHandlers(): Array<any> {
-    // @ts-ignore - accessing private field for testing purposes
-    return Array.from(this.collisionHandlers.values());
+    // TypeScript doesn't know about the private property in the base class
+    // so we need to use a type assertion to access it
+    const self = this as any;
+    return self.collisionHandlers || [];
   }
   
   /**
@@ -549,18 +830,24 @@ export class SpatialPartitioningCollisionSystem extends CollisionSystem {
    * @internal
    */
   protected getTriggerZones(): Array<any> {
-    // @ts-ignore - accessing private field for testing purposes
-    return Array.from(this.triggerZones.values());
+    // TypeScript doesn't know about the private property in the base class
+    // so we need to use a type assertion to access it
+    const self = this as any;
+    return self.triggerZones || [];
   }
   
   /**
-   * Checks if a collision is already active - abstracted to support unit testing
-   * @internal
+   * Checks if a trigger collision is active
+   * @param triggerId Trigger ID
+   * @param collisionId Collision ID
+   * @returns True if the collision is active
    */
   protected isActiveTriggerCollision(triggerId: string, collisionId: string): boolean {
-    // @ts-ignore - accessing private field for testing purposes
-    const collisions = this.activeTriggerCollisions.get(triggerId);
-    return collisions ? collisions.has(collisionId) : false;
+    // TypeScript doesn't know about the private property in the base class
+    // so we need to use a type assertion to access it
+    const self = this as any;
+    const activeTriggerCollisions = self.activeTriggerCollisions || new Map();
+    return activeTriggerCollisions.has(`${triggerId}-${collisionId}`);
   }
   
   /**
@@ -568,15 +855,11 @@ export class SpatialPartitioningCollisionSystem extends CollisionSystem {
    * @internal
    */
   protected addActiveTriggerCollision(triggerId: string, collisionId: string): void {
-    // @ts-ignore - accessing private field for testing purposes
-    let collisions = this.activeTriggerCollisions.get(triggerId);
-    
-    if (!collisions) {
-      collisions = new Set<string>();
-      // @ts-ignore - accessing private field for testing purposes
-      this.activeTriggerCollisions.set(triggerId, collisions);
+    // TypeScript doesn't know about the private property in the base class
+    // so we need to use a type assertion to access it
+    const self = this as any;
+    if (self.activeTriggerCollisions) {
+      self.activeTriggerCollisions.set(`${triggerId}-${collisionId}`, true);
     }
-    
-    collisions.add(collisionId);
   }
 } 

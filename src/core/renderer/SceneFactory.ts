@@ -9,6 +9,8 @@
 import * as BABYLON from 'babylonjs';
 import * as GUI from 'babylonjs-gui';
 import { GridMaterial } from 'babylonjs-materials';
+import { Logger } from '../utils/Logger';
+import { ServiceLocator } from '../base/ServiceLocator';
 
 /**
  * Scene type identifier
@@ -92,6 +94,7 @@ export type SceneOptions =
  */
 export class SceneFactory {
   private engine: BABYLON.Engine;
+  private logger: Logger;
   
   /**
    * Creates a new SceneFactory
@@ -99,6 +102,21 @@ export class SceneFactory {
    */
   constructor(engine: BABYLON.Engine) {
     this.engine = engine;
+    
+    // Initialize logger
+    this.logger = new Logger('SceneFactory');
+    
+    // Try to get logger from ServiceLocator if available
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add context tag
+        this.logger.addTag('SceneFactory');
+      }
+    } catch (e) {
+      // If service locator is not available, we'll use the default logger
+    }
   }
   
   /**
@@ -159,14 +177,16 @@ export class SceneFactory {
   private setupDefaultScene(scene: BABYLON.Scene, options: BaseSceneOptions): void {
     if (options.createDefaultCamera) {
       const camera = new BABYLON.ArcRotateCamera(
-        'defaultCamera',
-        Math.PI / 2,
-        Math.PI / 3,
-        10,
-        BABYLON.Vector3.Zero(),
+        'defaultCamera', 
+        -Math.PI / 2, 
+        Math.PI / 3, 
+        10, 
+        BABYLON.Vector3.Zero(), 
         scene
       );
-      camera.attachControl();
+      
+      camera.setTarget(BABYLON.Vector3.Zero());
+      camera.attachControl(this.engine.getRenderingCanvas(), true);
     }
     
     if (options.createDefaultLighting) {
@@ -213,7 +233,7 @@ export class SceneFactory {
     
     // Load level if specified
     if (options.levelName) {
-      console.log(`Loading level: ${options.levelName} (not implemented)`);
+      this.logger.info(`Loading level: ${options.levelName} (not implemented)`);
       // This would typically load level data and create game entities
     }
   }
@@ -249,7 +269,7 @@ export class SceneFactory {
     
     // Apply menu template if specified
     if (options.menuTemplate) {
-      console.log(`Applying menu template: ${options.menuTemplate} (not implemented)`);
+      this.logger.info(`Applying menu template: ${options.menuTemplate} (not implemented)`);
       // This would set up the menu UI based on a template
     } else {
       // Create a simple default menu
@@ -270,26 +290,19 @@ export class SceneFactory {
   }
   
   /**
-   * Sets up a loading scene with progress display
+   * Sets up a loading scene with progress bar
    * @param scene Scene to set up
    * @param options Loading scene options
    */
   private setupLoadingScene(scene: BABYLON.Scene, options: LoadingSceneOptions): void {
-    // Very minimal setup for loading scene
-    const loadingOptions: BaseSceneOptions = {
-      ...options,
-      createDefaultCamera: true,
-      createDefaultLighting: false,
-      clearColor: new BABYLON.Color4(0, 0, 0, 1)
-    };
-    
-    // Create simple camera
+    // For loading scenes, just create a simple camera
     const camera = new BABYLON.FreeCamera('loadingCamera', new BABYLON.Vector3(0, 0, -10), scene);
     camera.setTarget(BABYLON.Vector3.Zero());
     
-    // Create loading UI
+    // Create full screen UI
     const advancedTexture = GUI.AdvancedDynamicTexture.CreateFullscreenUI('loadingUI', true, scene);
     
+    // Loading text
     const loadingText = new GUI.TextBlock();
     loadingText.text = options.loadingText || "Loading...";
     loadingText.color = "white";
@@ -297,6 +310,9 @@ export class SceneFactory {
     loadingText.top = "-50px";
     advancedTexture.addControl(loadingText);
     
+    this.logger.info(`Created loading scene with text: "${loadingText.text}"`);
+    
+    // Progress bar
     const progressBar = new GUI.Rectangle("progressBar");
     progressBar.width = "400px";
     progressBar.height = "20px";
@@ -319,6 +335,7 @@ export class SceneFactory {
         progressIndicator.width = `${progress * 100}%`;
         if (options.onProgress) {
           options.onProgress(progress);
+          this.logger.debug(`Loading progress: ${(progress * 100).toFixed(1)}%`);
         }
       });
     }

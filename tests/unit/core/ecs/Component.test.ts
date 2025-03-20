@@ -61,7 +61,7 @@ describe('Component', () => {
 
   describe('Initialization', () => {
     test('should initialize with an entity', () => {
-      component.init(mockEntity);
+      component.initialize(mockEntity);
       
       // Try to get the entity (which would throw if not set)
       expect(() => component.testGetEntity()).not.toThrow();
@@ -95,7 +95,7 @@ describe('Component', () => {
     test('should call init method', () => {
       const initSpy = jest.spyOn(component['logger'], 'debug');
       
-      component.init(mockEntity);
+      component.initialize(mockEntity);
       
       expect(initSpy).toHaveBeenCalledWith(expect.stringContaining('Initialized'));
     });
@@ -103,7 +103,7 @@ describe('Component', () => {
     test('should call dispose method', () => {
       const disposeSpy = jest.spyOn(component['logger'], 'debug');
       
-      component.init(mockEntity);
+      component.initialize(mockEntity);
       component.dispose();
       
       expect(disposeSpy).toHaveBeenCalledWith('Component disposed');

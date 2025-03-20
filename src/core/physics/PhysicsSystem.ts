@@ -188,7 +188,7 @@ export class PhysicsSystem implements IPhysicsSystem {
   /**
    * Destroys the physics system and cleans up resources.
    */
-  public destroy(): void {
+  public dispose(): void {
     // Dispose all impostors
     this.impostors.forEach((impostor) => {
       impostor.dispose();
@@ -369,3 +369,4 @@ export class PhysicsSystem implements IPhysicsSystem {
     }
   }
 }
+

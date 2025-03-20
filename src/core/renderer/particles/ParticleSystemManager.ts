@@ -13,7 +13,8 @@ import {
   ExplosionEffectOptions,
   JetpackEffectOptions,
   SkiTrailEffectOptions,
-  ProjectileTrailEffectOptions
+  ProjectileTrailEffectOptions,
+  ParticleSystemFromPresetOptions
 } from './IParticleSystemManager';
 import {
   DEFAULT_PARTICLE_OPTIONS,
@@ -26,6 +27,71 @@ import {
   DEFAULT_IMPACT_SPARK_OPTIONS,
   scaleParticleEffect
 } from './ParticlePresets';
+import { ResourceTracker, ResourceType } from '../../utils/ResourceTracker';
+import { Logger } from '../../utils/Logger';
+import { ServiceLocator } from '../../base/ServiceLocator';
+
+/**
+ * Available quality levels for particle effects
+ */
+export enum ParticleQualityLevel {
+  ULTRA = 0,
+  HIGH = 1,
+  MEDIUM = 2,
+  LOW = 3,
+  VERY_LOW = 4
+}
+
+/**
+ * Configuration for particle system quality scaling
+ */
+export interface ParticleQualityConfig {
+  /** Current quality level */
+  qualityLevel: ParticleQualityLevel;
+  /** Whether to use adaptive quality based on performance */
+  adaptiveQuality: boolean;
+  /** Target framerate for adaptive quality */
+  targetFramerate: number;
+  /** How quickly to adapt to performance changes (0-1) */
+  adaptationSpeed: number;
+  /** How frequently to check performance (ms) */
+  checkInterval: number;
+  /** Scale factors for each quality level */
+  scalingFactors: Record<ParticleQualityLevel, number>;
+}
+
+/**
+ * Default quality configuration
+ */
+export const DEFAULT_PARTICLE_QUALITY_CONFIG: ParticleQualityConfig = {
+  qualityLevel: ParticleQualityLevel.HIGH,
+  adaptiveQuality: true,
+  targetFramerate: 60,
+  adaptationSpeed: 0.2,
+  checkInterval: 3000,
+  scalingFactors: {
+    [ParticleQualityLevel.ULTRA]: 1.25,
+    [ParticleQualityLevel.HIGH]: 1.0,
+    [ParticleQualityLevel.MEDIUM]: 0.75,
+    [ParticleQualityLevel.LOW]: 0.5,
+    [ParticleQualityLevel.VERY_LOW]: 0.3
+  }
+};
+
+/**
+ * Extended particle system interface with custom properties
+ * used by special effect particle systems
+ */
+interface ExtendedParticleSystem extends BABYLON.IParticleSystem {
+  /** Reference to a light emitted by jetpack effects */
+  _jetpackLight?: BABYLON.Light;
+  /** Reference to heat distortion effect */
+  _heatDistortion?: BABYLON.HighlightLayer;
+  /** Reference to distortion effect for projectiles */
+  _distortionEffect?: BABYLON.HighlightLayer;
+  /** Original unscaled options */
+  _originalOptions?: ParticleEffectOptions;
+}
 
 /**
  * Manager for creating and controlling particle systems
@@ -35,6 +101,50 @@ export class ParticleSystemManager implements IParticleSystemManager {
   private particleSystems: Map<string, BABYLON.ParticleSystem> = new Map();
   private particleTypes: Map<string, ParticleEffectType> = new Map();
   private nextId = 1;
+  private resourceTracker: ResourceTracker;
+  private logger: Logger;
+  
+  // Performance monitoring and quality scaling
+  private qualityConfig: ParticleQualityConfig;
+  private performanceObserver: BABYLON.Observer<BABYLON.Scene> | null = null;
+  private frameRateHistory: number[] = [];
+  private frameRateHistorySize: number = 10;
+  private lastPerformanceCheck: number = 0;
+  private currentScalingFactor: number = 1.0;
+  
+  /**
+   * Creates a new ParticleSystemManager
+   * @param resourceTracker Optional ResourceTracker instance to use
+   * @param qualityConfig Optional quality configuration
+   */
+  constructor(
+    resourceTracker?: ResourceTracker,
+    qualityConfig?: Partial<ParticleQualityConfig>
+  ) {
+    // Use provided ResourceTracker or create a new one
+    this.resourceTracker = resourceTracker || new ResourceTracker();
+    
+    // Initialize default logger
+    this.logger = new Logger('ParticleSystemManager');
+    
+    // Initialize quality config
+    this.qualityConfig = { ...DEFAULT_PARTICLE_QUALITY_CONFIG, ...qualityConfig };
+    this.currentScalingFactor = this.qualityConfig.scalingFactors[this.qualityConfig.qualityLevel];
+    
+    // Try to get logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add our context tag
+        this.logger.addTag('ParticleSystemManager');
+      }
+    } catch (e) {
+      this.logger.warn('Logger not available from ServiceLocator, using default logger');
+    }
+    
+    this.logger.debug(`ParticleSystemManager initialized with quality level: ${ParticleQualityLevel[this.qualityConfig.qualityLevel]}`);
+  }
   
   /**
    * Initialize the particle manager
@@ -42,6 +152,92 @@ export class ParticleSystemManager implements IParticleSystemManager {
    */
   public initialize(scene: BABYLON.Scene): void {
     this.scene = scene;
+    
+    // Setup performance monitoring if adaptive quality is enabled
+    if (this.qualityConfig.adaptiveQuality) {
+      this.setupPerformanceMonitoring();
+    }
+  }
+  
+  /**
+   * Setup performance monitoring for adaptive particle quality
+   */
+  private setupPerformanceMonitoring(): void {
+    if (!this.scene) {
+      return;
+    }
+    
+    // Remove existing observer if any
+    if (this.performanceObserver) {
+      this.scene.onAfterRenderObservable.remove(this.performanceObserver);
+      this.performanceObserver = null;
+    }
+    
+    // Add new observer
+    this.performanceObserver = this.scene.onAfterRenderObservable.add(() => {
+      // Get current frame rate
+      const fps = Math.round(this.scene!.getEngine().getFps());
+      
+      // Add to history
+      this.frameRateHistory.push(fps);
+      
+      // Keep history at specified size
+      if (this.frameRateHistory.length > this.frameRateHistorySize) {
+        this.frameRateHistory.shift();
+      }
+      
+      // Check if it's time to evaluate performance
+      const currentTime = performance.now();
+      if (currentTime - this.lastPerformanceCheck >= this.qualityConfig.checkInterval) {
+        this.evaluateParticleQuality();
+        this.lastPerformanceCheck = currentTime;
+      }
+    });
+  }
+  
+  /**
+   * Evaluate performance and adjust particle quality settings if needed
+   */
+  private evaluateParticleQuality(): void {
+    if (!this.qualityConfig.adaptiveQuality || this.frameRateHistory.length < 5) {
+      return;
+    }
+    
+    // Calculate average FPS
+    const avgFps = this.frameRateHistory.reduce((sum, fps) => sum + fps, 0) / this.frameRateHistory.length;
+    
+    // Calculate variance to detect unstable frame rates
+    let variance = 0;
+    for (const fps of this.frameRateHistory) {
+      variance += Math.pow(fps - avgFps, 2);
+    }
+    variance /= this.frameRateHistory.length;
+    
+    // Determine if we need to adjust quality
+    const targetFps = this.qualityConfig.targetFramerate;
+    const fpsRatio = avgFps / targetFps;
+    
+    let newQualityLevel = this.qualityConfig.qualityLevel;
+    
+    if (fpsRatio < 0.65) {
+      // Significantly under target FPS, decrease quality by two levels
+      newQualityLevel = Math.min(ParticleQualityLevel.VERY_LOW, newQualityLevel + 2);
+    } else if (fpsRatio < 0.85) {
+      // Under target FPS, decrease quality by one level
+      newQualityLevel = Math.min(ParticleQualityLevel.VERY_LOW, newQualityLevel + 1);
+    } else if (fpsRatio > 1.5 && variance < 100) {
+      // Significantly over target FPS and stable, increase quality by two levels
+      newQualityLevel = Math.max(ParticleQualityLevel.ULTRA, newQualityLevel - 2);
+    } else if (fpsRatio > 1.2 && variance < 50) {
+      // Over target FPS and stable, increase quality by one level
+      newQualityLevel = Math.max(ParticleQualityLevel.ULTRA, newQualityLevel - 1);
+    }
+    
+    // Apply new quality level if changed
+    if (newQualityLevel !== this.qualityConfig.qualityLevel) {
+      this.setQualityLevel(newQualityLevel);
+      this.logger.debug(`Adjusted particle quality to: ${ParticleQualityLevel[newQualityLevel]} (FPS: ${avgFps.toFixed(1)}, Target: ${targetFps})`);
+    }
   }
   
   /**
@@ -57,7 +253,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
     options?: ParticleEffectOptions
   ): string | null {
     if (!this.scene) {
-      console.error('ParticleSystemManager: Scene not initialized');
+      this.logger.error('Scene not initialized');
       return null;
     }
     
@@ -66,12 +262,18 @@ export class ParticleSystemManager implements IParticleSystemManager {
       const id = `${type}_${this.nextId++}`;
       let particleSystem: BABYLON.ParticleSystem | null = null;
       
+      // Store original unscaled options
+      const originalOptions = options ? { ...options } : undefined;
+      
+      // Apply quality scaling to options
+      const qualityScaledOptions = this.applyQualityScaling(type, options);
+      
       // Create appropriate effect type
       switch (type) {
         case ParticleEffectType.EXPLOSION:
           particleSystem = this.createExplosionEffect(
             emitter instanceof BABYLON.Vector3 ? emitter : emitter.position,
-            options as ExplosionEffectOptions
+            qualityScaledOptions as ExplosionEffectOptions
           );
           break;
           
@@ -79,10 +281,10 @@ export class ParticleSystemManager implements IParticleSystemManager {
           if (emitter instanceof BABYLON.AbstractMesh) {
             particleSystem = this.createJetpackEffectInternal(
               emitter,
-              options as JetpackEffectOptions
+              qualityScaledOptions as JetpackEffectOptions
             );
           } else {
-            console.error('ParticleSystemManager: Jetpack effects require a mesh emitter');
+            this.logger.error('Jetpack effects require a mesh emitter');
             return null;
           }
           break;
@@ -91,10 +293,10 @@ export class ParticleSystemManager implements IParticleSystemManager {
           if (emitter instanceof BABYLON.AbstractMesh) {
             particleSystem = this.createSkiTrailEffectInternal(
               emitter,
-              options as SkiTrailEffectOptions
+              qualityScaledOptions as SkiTrailEffectOptions
             );
           } else {
-            console.error('ParticleSystemManager: Ski trail effects require a mesh emitter');
+            this.logger.error('Ski trail effects require a mesh emitter');
             return null;
           }
           break;
@@ -103,10 +305,10 @@ export class ParticleSystemManager implements IParticleSystemManager {
           if (emitter instanceof BABYLON.AbstractMesh) {
             particleSystem = this.createProjectileTrailEffectInternal(
               emitter,
-              options as ProjectileTrailEffectOptions
+              qualityScaledOptions as ProjectileTrailEffectOptions
             );
           } else {
-            console.error('ParticleSystemManager: Projectile trail effects require a mesh emitter');
+            this.logger.error('Projectile trail effects require a mesh emitter');
             return null;
           }
           break;
@@ -115,7 +317,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
           particleSystem = this.createBasicEffect(
             type,
             emitter,
-            { ...DEFAULT_DUST_OPTIONS, ...options }
+            { ...DEFAULT_DUST_OPTIONS, ...qualityScaledOptions }
           );
           break;
           
@@ -123,7 +325,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
           particleSystem = this.createBasicEffect(
             type,
             emitter,
-            { ...DEFAULT_MUZZLE_FLASH_OPTIONS, ...options }
+            { ...DEFAULT_MUZZLE_FLASH_OPTIONS, ...qualityScaledOptions }
           );
           break;
           
@@ -131,7 +333,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
           particleSystem = this.createBasicEffect(
             type,
             emitter,
-            { ...DEFAULT_IMPACT_SPARK_OPTIONS, ...options }
+            { ...DEFAULT_IMPACT_SPARK_OPTIONS, ...qualityScaledOptions }
           );
           break;
           
@@ -139,7 +341,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
           particleSystem = this.createBasicEffect(
             type,
             emitter,
-            options
+            qualityScaledOptions
           );
           break;
           
@@ -147,16 +349,19 @@ export class ParticleSystemManager implements IParticleSystemManager {
           particleSystem = this.createBasicEffect(
             type,
             emitter,
-            options
+            qualityScaledOptions
           );
           break;
           
         default:
-          console.warn(`ParticleSystemManager: Unknown effect type ${type}`);
+          this.logger.warn(`Unknown effect type ${type}`);
           return null;
       }
       
       if (particleSystem) {
+        // Store original options for future quality adjustments
+        (particleSystem as ExtendedParticleSystem)._originalOptions = originalOptions;
+        
         // Store in our tracking maps
         this.particleSystems.set(id, particleSystem);
         this.particleTypes.set(id, type);
@@ -172,17 +377,151 @@ export class ParticleSystemManager implements IParticleSystemManager {
       
       return null;
     } catch (error) {
-      console.error(`ParticleSystemManager: Error creating effect ${type}`, error);
+      this.logger.error(`Error creating effect ${type}`, error as Error);
       return null;
     }
   }
   
   /**
-   * Create a basic particle effect
+   * Apply quality scaling to particle effect options
+   * @param type Type of particle effect 
+   * @param options Original options
+   * @returns Quality-scaled options
+   */
+  private applyQualityScaling(
+    type: ParticleEffectType,
+    options?: ParticleEffectOptions
+  ): ParticleEffectOptions | undefined {
+    if (!options) {
+      return options;
+    }
+    
+    // Skip scaling if it's already been applied or the scale is explicitly set
+    if (options._qualityScaled) {
+      return options;
+    }
+    
+    // Clone the options to avoid modifying the original
+    const scaledOptions = { ...options };
+    
+    // The scaling factor depends on the effect type and current quality level
+    const baseFactor = this.currentScalingFactor;
+    
+    // Adjust based on effect type (more important effects get higher quality)
+    let typeFactor = 1.0;
+    switch (type) {
+      case ParticleEffectType.EXPLOSION:
+        // Explosions are visually important, so scale them less aggressively
+        typeFactor = 1.1;
+        break;
+      case ParticleEffectType.PROJECTILE_TRAIL:
+        // Projectile trails are important for gameplay, scale them less
+        typeFactor = 1.05;
+        break;
+      case ParticleEffectType.JETPACK:
+        // Jetpack effects are important for player feedback
+        typeFactor = 1.0;
+        break;
+      case ParticleEffectType.DUST:
+      case ParticleEffectType.SKI_TRAIL:
+        // These are less critical, can be scaled more aggressively
+        typeFactor = 0.9;
+        break;
+      default:
+        typeFactor = 1.0;
+    }
+    
+    // Calculate final factor, clamping to reasonable values
+    const finalFactor = Math.max(0.2, Math.min(1.5, baseFactor * typeFactor));
+    
+    // Apply scaling using the utility function from ParticlePresets
+    const result = scaleParticleEffect(scaledOptions, finalFactor);
+    
+    // Mark as quality scaled to prevent double-scaling
+    result._qualityScaled = true;
+    
+    return result;
+  }
+  
+  /**
+   * Set the particle quality level
+   * @param level New quality level
+   */
+  public setQualityLevel(level: ParticleQualityLevel): void {
+    if (level === this.qualityConfig.qualityLevel) {
+      return;
+    }
+    
+    this.qualityConfig.qualityLevel = level;
+    this.currentScalingFactor = this.qualityConfig.scalingFactors[level];
+    
+    // Update all existing particle systems
+    this.updateAllParticleSystemsQuality();
+    
+    this.logger.debug(`Particle quality set to: ${ParticleQualityLevel[level]} (scale factor: ${this.currentScalingFactor})`);
+  }
+  
+  /**
+   * Enable or disable adaptive quality
+   * @param enabled Whether adaptive quality should be enabled
+   */
+  public setAdaptiveQuality(enabled: boolean): void {
+    if (enabled === this.qualityConfig.adaptiveQuality) {
+      return;
+    }
+    
+    this.qualityConfig.adaptiveQuality = enabled;
+    
+    if (enabled) {
+      this.setupPerformanceMonitoring();
+    } else if (this.performanceObserver && this.scene) {
+      this.scene.onAfterRenderObservable.remove(this.performanceObserver);
+      this.performanceObserver = null;
+    }
+    
+    this.logger.debug(`Adaptive particle quality ${enabled ? 'enabled' : 'disabled'}`);
+  }
+  
+  /**
+   * Set target framerate for adaptive quality
+   * @param fps Target framerate
+   */
+  public setTargetFramerate(fps: number): void {
+    this.qualityConfig.targetFramerate = Math.max(30, Math.min(120, fps));
+  }
+  
+  /**
+   * Update quality for all existing particle systems
+   */
+  private updateAllParticleSystemsQuality(): void {
+    for (const [id, system] of this.particleSystems.entries()) {
+      const originalOptions = (system as ExtendedParticleSystem)._originalOptions;
+      const type = this.particleTypes.get(id) || ParticleEffectType.CUSTOM;
+      
+      if (originalOptions) {
+        // Apply new quality scaling
+        const scaledOptions = this.applyQualityScaling(type, originalOptions);
+        
+        // Update the particle system
+        this.updateEffect(id, scaledOptions!);
+      }
+    }
+  }
+  
+  /**
+   * Get current particle quality configuration
+   * @returns Current quality configuration
+   */
+  public getQualityConfig(): Readonly<ParticleQualityConfig> {
+    return { ...this.qualityConfig };
+  }
+  
+  /**
+   * Create a basic particle system with standard configuration
    * @param type Type of effect
-   * @param emitter Mesh or position emitter
-   * @param options Effect options
-   * @returns Created particle system
+   * @param emitter Emitter mesh or position
+   * @param options Configuration options
+   * @returns Configured particle system
    */
   private createBasicEffect(
     type: ParticleEffectType,
@@ -190,80 +529,114 @@ export class ParticleSystemManager implements IParticleSystemManager {
     options?: ParticleEffectOptions
   ): BABYLON.ParticleSystem {
     if (!this.scene) {
-      throw new Error('Scene not initialized');
+      throw new Error('Cannot create particle system: scene not initialized');
     }
     
-    // Merge with default options
-    const config = { ...DEFAULT_PARTICLE_OPTIONS, ...options };
+    // Apply quality scaling to options
+    const scaledOptions = this.applyQualityScaling(type, options);
+    const config = scaledOptions || {};
     
-    // Create particle system
-    const particleSystem = new BABYLON.ParticleSystem(`${type}_system`, config.maxParticles || 2000, this.scene);
+    // Get emitter position for systems that need it
+    const emitterPosition = emitter instanceof BABYLON.Vector3 
+      ? emitter 
+      : emitter.position;
+    
+    // Create basic particle system
+    const particleSystem = new BABYLON.ParticleSystem(
+      `particles_${type}_${this.nextId++}`,
+      (config as any).capacity || 2000,
+      this.scene
+    );
+    
+    // Store original unscaled options for later quality adjustments
+    (particleSystem as ExtendedParticleSystem)._originalOptions = options;
     
     // Set emitter
-    if (emitter instanceof BABYLON.Vector3) {
-      particleSystem.emitter = emitter;
-    } else {
-      particleSystem.emitter = emitter;
-      
-      // Only use local space for mesh emitters if specified
-      if (config.isLocal) {
-        particleSystem.isLocal = true;
-      }
-    }
+    particleSystem.emitter = emitter;
     
-    // Set basic properties
-    particleSystem.minLifeTime = config.minLifeTime || 0.5;
-    particleSystem.maxLifeTime = config.maxLifeTime || 1.5;
-    particleSystem.minSize = config.minSize || 0.1;
-    particleSystem.maxSize = config.maxSize || 0.5;
-    particleSystem.emitRate = config.emitRate || 100;
-    particleSystem.color1 = config.startColor || new BABYLON.Color4(1, 1, 1, 1);
-    particleSystem.color2 = config.endColor || new BABYLON.Color4(1, 1, 1, 0);
-    particleSystem.blendMode = config.blendMode || BABYLON.ParticleSystem.BLENDMODE_STANDARD;
-    
-    // Direction 
-    const coneAngle = config.emitConeAngle || 0.5;
-    particleSystem.direction1 = new BABYLON.Vector3(-coneAngle, 1, -coneAngle);
-    particleSystem.direction2 = new BABYLON.Vector3(coneAngle, 1, coneAngle);
-    
-    if (config.direction) {
-      // Override with specific direction if provided
-      particleSystem.direction1 = new BABYLON.Vector3(
-        config.direction.x - coneAngle,
-        config.direction.y - coneAngle,
-        config.direction.z - coneAngle
-      );
-      
-      particleSystem.direction2 = new BABYLON.Vector3(
-        config.direction.x + coneAngle,
-        config.direction.y + coneAngle,
-        config.direction.z + coneAngle
-      );
-    }
-    
-    // Power (speed)
+    // Common basic configuration
     particleSystem.minEmitPower = config.minEmitPower || 1;
-    particleSystem.maxEmitPower = config.maxEmitPower || 3;
+    particleSystem.maxEmitPower = config.maxEmitPower || 5;
+    particleSystem.minLifeTime = config.minLifeTime || 0.3;
+    particleSystem.maxLifeTime = config.maxLifeTime || 1.5;
+    particleSystem.emitRate = config.emitRate || 100;
+    particleSystem.minSize = config.minSize || 0.1;
+    particleSystem.maxSize = config.maxSize || 1.0;
     
-    // Gravity
+    // Set color gradients if specified
+    if ((config as any).colorGradient) {
+      particleSystem.addColorGradient(0, (config as any).colorGradient.start || new BABYLON.Color4(1, 1, 1, 1));
+      particleSystem.addColorGradient(1, (config as any).colorGradient.end || new BABYLON.Color4(1, 1, 1, 0));
+    } else {
+      // Default color is white with alpha fade
+      particleSystem.addColorGradient(0, new BABYLON.Color4(1, 1, 1, 1));
+      particleSystem.addColorGradient(1, new BABYLON.Color4(1, 1, 1, 0));
+    }
+    
+    // Set optional parameters if specified
+    if ((config as any).updateSpeed !== undefined) {
+      particleSystem.updateSpeed = (config as any).updateSpeed;
+    }
+    
+    if ((config as any).direction1) {
+      particleSystem.direction1 = (config as any).direction1;
+    }
+    
+    if ((config as any).direction2) {
+      particleSystem.direction2 = (config as any).direction2;
+    }
+    
     if (config.gravity) {
       particleSystem.gravity = config.gravity;
     }
     
-    // Loop or limited duration
-    particleSystem.targetStopDuration = config.emitDuration || 0;
-    particleSystem.disposeOnStop = false;
-    
-    // Add texture if specified
-    if (config.texturePath) {
-      particleSystem.particleTexture = new BABYLON.Texture(config.texturePath, this.scene);
+    // Set additional optional properties if specified
+    if (config.blendMode !== undefined) {
+      particleSystem.blendMode = config.blendMode;
     }
     
-    // Layer mask if specified
-    if (config.layerMask !== undefined) {
-      particleSystem.layerMask = config.layerMask;
+    // Apply layer mask if specified - using type casting to avoid TypeScript error
+    // The property exists on ParticleSystem but might not be in the interface definition
+    if ((config as any).layerMask !== undefined) {
+      (particleSystem as any).layerMask = (config as any).layerMask;
     }
     
+    // Set custom texture if specified
+    if ((config as any).textureName) {
+      const texture = new BABYLON.Texture((config as any).textureName, this.scene);
+      particleSystem.particleTexture = texture;
+      
+      // Track texture resource
+      this.resourceTracker.track(texture, {
+        type: ResourceType.TEXTURE,
+        id: `particle_texture_${particleSystem.name}`,
+        group: 'particles'
+      });
+    } else {
+      // Use default particle texture
+      particleSystem.particleTexture = new BABYLON.Texture(
+        "textures/flare.png", 
+        this.scene
+      );
+    }
+    
+    // Set billboard mode if specified
+    if ((config as any).billboardMode !== undefined) {
+      particleSystem.billboardMode = (config as any).billboardMode;
+    }
+    
+    // Apply necessary optimizations
+    particleSystem.preWarmCycles = (config as any).preWarmCycles || 0;
+    particleSystem.disposeOnStop = false; // We'll manage disposal
+    
+    // Track the particle system
+    this.resourceTracker.track(particleSystem, {
+      type: ResourceType.PARTICLE_SYSTEM,
+      id: particleSystem.name,
+      group: 'particles',
+    });
+    
+    // Return the configured system
     return particleSystem;
   }
   
@@ -392,7 +765,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
       
       return true;
     } catch (error) {
-      console.error(`ParticleSystemManager: Error updating effect ${id}`, error);
+      this.logger.error(`Error updating effect ${id}`, error as Error);
       return false;
     }
   }
@@ -493,7 +866,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
       light.parent = emitter; // Attach to the same emitter
       
       // Save reference to the light for disposal later
-      (particleSystem as any)._jetpackLight = light;
+      (particleSystem as ExtendedParticleSystem)._jetpackLight = light;
       
       // Position light slightly behind particle emitter
       light.position = new BABYLON.Vector3(0, -0.5, 0);
@@ -509,8 +882,36 @@ export class ParticleSystemManager implements IParticleSystemManager {
       heatLayer.blurVerticalSize = 0.3;
       
       // Save reference for disposal
-      (particleSystem as any)._heatDistortion = heatLayer;
+      (particleSystem as ExtendedParticleSystem)._heatDistortion = heatLayer;
     }
+    
+    // Add this after creating the jetpack light
+    if (config.emitLight && (particleSystem as ExtendedParticleSystem)._jetpackLight) {
+      // Track the light with ResourceTracker
+      this.resourceTracker.trackMesh((particleSystem as ExtendedParticleSystem)._jetpackLight as any, {
+        group: `jetpack_${this.nextId}`,
+        metadata: { effectType: ParticleEffectType.JETPACK }
+      });
+    }
+    
+    // Add this after creating the heat distortion
+    if (config.heatDistortion && (particleSystem as ExtendedParticleSystem)._heatDistortion) {
+      const heatDistortion = (particleSystem as ExtendedParticleSystem)._heatDistortion;
+      if (heatDistortion) {
+        // Track the distortion effect with null check
+        this.resourceTracker.track(heatDistortion, {
+          type: ResourceType.OTHER,
+          group: `jetpack_${this.nextId}`,
+          metadata: { effectType: ParticleEffectType.JETPACK, subType: 'heatDistortion' }
+        });
+      }
+    }
+    
+    // Track the created particle system
+    this.resourceTracker.trackParticleSystem(particleSystem, {
+      group: `jetpack_${this.nextId}`,
+      metadata: { effectType: ParticleEffectType.JETPACK }
+    });
     
     return particleSystem;
   }
@@ -602,7 +1003,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
       distortionLayer.blurVerticalSize = 0.2;
       
       // Save reference for disposal
-      (particleSystem as any)._distortionEffect = distortionLayer;
+      (particleSystem as ExtendedParticleSystem)._distortionEffect = distortionLayer;
     }
     
     return particleSystem;
@@ -651,38 +1052,82 @@ export class ParticleSystemManager implements IParticleSystemManager {
   /**
    * Dispose of a particle effect
    * @param id ID of the effect to dispose
-   * @returns True if successfully disposed
+   * @returns Whether the disposal was successful
    */
   public disposeEffect(id: string): boolean {
-    const system = this.particleSystems.get(id);
-    if (!system) {
-      return false;
-    }
-    
     try {
-      // Dispose custom effects if any
-      if ((system as any)._jetpackLight) {
-        (system as any)._jetpackLight.dispose();
+      const system = this.particleSystems.get(id);
+      if (!system) {
+        this.logWarning(`Effect with ID ${id} not found for disposal`);
+        return false;
       }
       
-      if ((system as any)._heatDistortion) {
-        (system as any)._heatDistortion.dispose();
-      }
+      // Get the effect type for specialized cleanup
+      const effectType = this.particleTypes.get(id);
       
-      if ((system as any)._distortionEffect) {
-        (system as any)._distortionEffect.dispose();
-      }
+      // Handle extended particle systems with special cleanup requirements
+      const extendedSystem = system as ExtendedParticleSystem;
       
-      // Dispose the particle system
-      system.dispose();
-      
-      // Remove from our maps
+      // Remove from our tracking maps
       this.particleSystems.delete(id);
       this.particleTypes.delete(id);
       
+      // Instead of manually disposing resources, let the ResourceTracker handle it
+      // The ResourceTracker will dispose all associated resources
+      
+      // Get the resource ID from the tracker - it might be different from our ID
+      // if the resource was registered in a batch
+      const resourceId = `particle_${id}`;
+      
+      // Try to dispose by ID first
+      let disposed = this.resourceTracker.disposeResource(id);
+      
+      // If that fails, try by the resource ID
+      if (!disposed) {
+        disposed = this.resourceTracker.disposeResource(resourceId);
+      }
+      
+      // If that also fails, try disposing by group
+      if (!disposed) {
+        // Try to find a group specific to this effect
+        const disposedCount = this.resourceTracker.disposeByFilter({
+          predicate: resource => 
+            resource.metadata?.particleId === id || 
+            resource.group === `effect_${id}`
+        });
+        
+        disposed = disposedCount > 0;
+      }
+      
+      // As a last resort, manually dispose the resources
+      if (!disposed) {
+        this.logWarning(`Resource tracking disposal failed for ${id}, attempting manual disposal`);
+        
+        // Special handling for Jetpack effects
+        if (effectType === ParticleEffectType.JETPACK) {
+          if (extendedSystem._jetpackLight) {
+            extendedSystem._jetpackLight.dispose();
+          }
+          
+          if (extendedSystem._heatDistortion) {
+            extendedSystem._heatDistortion.dispose();
+          }
+        }
+        
+        // Special handling for Projectile trails
+        if (effectType === ParticleEffectType.PROJECTILE_TRAIL) {
+          if (extendedSystem._distortionEffect) {
+            extendedSystem._distortionEffect.dispose();
+          }
+        }
+        
+        // Dispose the particle system itself
+        system.dispose();
+      }
+      
       return true;
     } catch (error) {
-      console.error(`ParticleSystemManager: Error disposing effect ${id}`, error);
+      this.logError(`Error disposing effect ${id}: ${error}`);
       return false;
     }
   }
@@ -691,14 +1136,29 @@ export class ParticleSystemManager implements IParticleSystemManager {
    * Dispose of all particle effects
    */
   public disposeAll(): void {
-    // Dispose all particle systems
-    this.particleSystems.forEach(system => {
-      system.dispose();
-    });
-    
-    // Clear maps
-    this.particleSystems.clear();
-    this.particleTypes.clear();
+    try {
+      // Get all IDs before we start removing
+      const ids = Array.from(this.particleSystems.keys());
+      
+      // Dispose each effect
+      for (const id of ids) {
+        this.disposeEffect(id);
+      }
+      
+      // Also dispose any resources that might have been missed
+      this.resourceTracker.disposeByFilter({
+        predicate: resource => 
+          resource.metadata?.effectType !== undefined || 
+          resource.group?.startsWith('effect_') ||
+          resource.group === 'particles'
+      });
+      
+      // Clear maps
+      this.particleSystems.clear();
+      this.particleTypes.clear();
+    } catch (error) {
+      this.logError(`Error disposing all effects: ${error}`);
+    }
   }
 
   /**
@@ -708,12 +1168,16 @@ export class ParticleSystemManager implements IParticleSystemManager {
    * @returns ID of the registered particle system
    */
   public registerExternalParticleSystem(name: string, particleSystem: BABYLON.ParticleSystem): string {
-    // Generate a unique ID
-    const id = `${name}_${this.nextId++}`;
-    
-    // Store the particle system with its ID
+    const id = `external_${name}_${this.nextId++}`;
     this.particleSystems.set(id, particleSystem);
     this.particleTypes.set(id, ParticleEffectType.CUSTOM);
+    
+    // Track with resource tracker
+    this.resourceTracker.trackParticleSystem(particleSystem, {
+      id,
+      group: 'external_particles',
+      metadata: { effectType: ParticleEffectType.CUSTOM, name }
+    });
     
     return id;
   }
@@ -727,7 +1191,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
   public setEmitting(id: string, emitting: boolean): boolean {
     const particleSystem = this.particleSystems.get(id);
     if (!particleSystem) {
-      console.warn(`ParticleSystemManager: Cannot set emitting state for unknown system ${id}`);
+      this.logger.warn(`Cannot set emitting state for unknown system ${id}`);
       return false;
     }
     
@@ -753,18 +1217,53 @@ export class ParticleSystemManager implements IParticleSystemManager {
    * @param options Options for creating the particle system from preset
    * @returns ID of the created particle system
    */
-  public createParticleSystemFromPreset(options: any): string | null {
+  public createParticleSystemFromPreset(options: ParticleSystemFromPresetOptions): string | null {
     if (!this.scene) {
-      console.error('ParticleSystemManager: Scene not initialized');
+      this.logError('Scene not initialized');
       return null;
     }
 
     try {
-      // Implementation would go here
-      console.warn('ParticleSystemFromPreset not fully implemented');
+      // Generate particle system ID
+      const id = `preset_${options.preset}_${this.nextId++}`;
+      
+      // Determine the effect type based on preset name
+      let effectType = ParticleEffectType.CUSTOM;
+      
+      // Convert string preset to enum if it matches a known type
+      if (Object.values(ParticleEffectType).includes(options.preset as ParticleEffectType)) {
+        effectType = options.preset as ParticleEffectType;
+      }
+      
+      // Create particle system
+      const particleSystemId = this.createEffect(
+        effectType,
+        options.emitter,
+        options.customizations
+      );
+      
+      if (particleSystemId) {
+        const particleSystem = this.particleSystems.get(particleSystemId);
+        
+        // Track the particle system with ResourceTracker if it exists
+        if (particleSystem) {
+          this.resourceTracker.trackParticleSystem(particleSystem, {
+            id,
+            group: 'preset_particles',
+            metadata: { 
+              effectType: effectType,
+              presetName: options.preset,
+              effectId: id
+            }
+          });
+        }
+        
+        return particleSystemId;
+      }
+      
       return null;
     } catch (error) {
-      console.error('Error creating particle system from preset:', error);
+      this.logError(`Error creating particle system from preset: ${error}`);
       return null;
     }
   }
@@ -791,7 +1290,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
       }
       return false;
     } catch (error) {
-      console.error(`ParticleSystemManager: Error updating emitter position for ${id}`, error);
+      this.logger.error(`Error updating emitter position for ${id}`, error as Error);
       return false;
     }
   }
@@ -812,7 +1311,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
       system.emitRate = emitRate;
       return true;
     } catch (error) {
-      console.error(`ParticleSystemManager: Error updating emit rate for ${id}`, error);
+      this.logger.error(`Error updating emit rate for ${id}`, error as Error);
       return false;
     }
   }
@@ -841,7 +1340,7 @@ export class ParticleSystemManager implements IParticleSystemManager {
       }
       return true;
     } catch (error) {
-      console.error(`ParticleSystemManager: Error setting visibility for ${id}`, error);
+      this.logger.error(`Error setting visibility for ${id}`, error as Error);
       return false;
     }
   }
@@ -853,5 +1352,21 @@ export class ParticleSystemManager implements IParticleSystemManager {
    */
   public removeParticleSystem(id: string): boolean {
     return this.disposeEffect(id);
+  }
+
+  /**
+   * Log a warning message
+   * @param message The message to log
+   */
+  private logWarning(message: string): void {
+    this.logger.warn(message);
+  }
+  
+  /**
+   * Log an error message
+   * @param message The message to log
+   */
+  private logError(message: string): void {
+    this.logger.error(message);
   }
 } 

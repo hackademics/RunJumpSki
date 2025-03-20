@@ -11,6 +11,8 @@ import * as BABYLON from 'babylonjs';
 // Core engine imports
 import { PostProcessingManager } from '../../core/renderer/effects/PostProcessingManager';
 import { IPostProcessingManager, PostProcessEffectType } from '../../core/renderer/effects/IPostProcessingManager';
+import { Logger } from '../../core/utils/Logger';
+import { ServiceLocator } from '../../core/base/ServiceLocator';
 
 // Component imports
 import { IEntity } from '../../core/ecs/IEntity';
@@ -100,6 +102,7 @@ export class SpeedEffectsController implements ISpeedEffectsController {
     private targetEntity: IEntity | null = null;
     private transformComponent: ITransformComponent | null = null;
     private postProcessingManager: IPostProcessingManager | null = null;
+    private camera: BABYLON.Camera | null = null;
     
     private options: SpeedEffectsOptions;
     private enabled: boolean = true;
@@ -114,12 +117,31 @@ export class SpeedEffectsController implements ISpeedEffectsController {
     private depthOfFieldEffect: string | null = null;
     private colorCorrectionEffect: string | null = null;
     
+    private logger: Logger;
+    
     /**
-     * Create a new SpeedEffectsController with the given options
-     * @param options Configuration options for speed effects
+     * Creates a new SpeedEffectsController with the provided options
+     * @param options Configuration options
      */
     constructor(options: Partial<SpeedEffectsOptions> = {}) {
         this.options = { ...DEFAULT_SPEED_EFFECTS_OPTIONS, ...options };
+        
+        // Initialize logger with default instance
+        this.logger = new Logger('SpeedEffectsController');
+        
+        // Try to get the logger from ServiceLocator
+        try {
+            const serviceLocator = ServiceLocator.getInstance();
+            if (serviceLocator.has('logger')) {
+                this.logger = serviceLocator.get<Logger>('logger');
+                // Add context tag
+                this.logger.addTag('SpeedEffectsController');
+            }
+        } catch (e) {
+            this.logger.warn(`Failed to get logger from ServiceLocator: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        }
+        
+        this.logger.debug('SpeedEffectsController created');
     }
     
     /**
@@ -141,7 +163,9 @@ export class SpeedEffectsController implements ISpeedEffectsController {
         if (scene) {
             const camera = this.options.camera || scene.activeCamera;
             if (camera) {
-                this.postProcessingManager.initialize(scene, camera);
+                // Initialize with just the scene (following the interface)
+                this.postProcessingManager.initialize(scene);
+                this.camera = camera;
                 
                 // Store initial position if we have a transform component
                 if (this.transformComponent) {
@@ -157,27 +181,33 @@ export class SpeedEffectsController implements ISpeedEffectsController {
     }
     
     /**
-     * Setup all post-processing effects
+     * Initializes the post-processing effects
      */
     private setupEffects(): void {
-        if (!this.scene || !this.postProcessingManager) {
-            return;
-        }
+        if (!this.scene) return;
         
+        // Get camera for effects
         const camera = this.options.camera || this.scene.activeCamera;
         if (!camera) {
-            console.warn('SpeedEffectsController: No camera available for effects');
+            this.logger.error("No camera available for effects");
             return;
         }
         
-        // Create motion blur effect with minimum intensity
+        // Create post-processing manager if needed
+        if (!this.postProcessingManager) {
+            // Use constructor overload that accepts scene and use initialize with the camera
+            this.postProcessingManager = new PostProcessingManager();
+            this.postProcessingManager.initialize(this.scene);
+        }
+        
+        // Setup motion blur effect
         this.postProcessingManager.configureMotionBlur({
             intensity: 0,
             enabled: this.enabled
         });
         this.motionBlurEffect = PostProcessEffectType.MOTION_BLUR;
         
-        // Create depth of field effect with minimum intensity
+        // Setup depth of field effect
         this.postProcessingManager.configureDepthOfField({
             focalLength: 150,
             fStop: 1.4,
@@ -186,7 +216,7 @@ export class SpeedEffectsController implements ISpeedEffectsController {
         });
         this.depthOfFieldEffect = PostProcessEffectType.DEPTH_OF_FIELD;
         
-        // Create color correction effect
+        // Setup color correction effect
         this.postProcessingManager.configureColorCorrection({
             saturation: 1.0,
             contrast: 1.0,
@@ -201,7 +231,13 @@ export class SpeedEffectsController implements ISpeedEffectsController {
      * @param deltaTime Time elapsed since last update
      */
     public update(deltaTime: number): void {
-        if (!this.enabled || !this.transformComponent || !this.postProcessingManager) {
+        if (!this.scene || !this.enabled || !this.transformComponent || !this.postProcessingManager) {
+            return;
+        }
+        
+        const camera = this.options.camera || this.scene.activeCamera;
+        if (!camera) {
+            this.logger.warn('No camera available for effects');
             return;
         }
         

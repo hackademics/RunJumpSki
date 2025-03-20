@@ -35,50 +35,66 @@ export enum ParticleEffectType {
  * Base options for all particle effects
  */
 export interface ParticleEffectOptions {
-  /** Whether the effect is enabled */
+  /** Whether the effect is initially enabled */
   enabled?: boolean;
-  /** Base scale for the effect (1.0 = normal size) */
+  /** Scale factor for the effect */
   scale?: number;
-  /** Maximum particles to emit */
+  /** Maximum number of particles */
   maxParticles?: number;
-  /** Emission rate (particles per second) */
+  /** Particles emitted per second */
   emitRate?: number;
-  /** Particle minimum lifetime in seconds */
+  /** Minimum particle lifetime */
   minLifeTime?: number;
-  /** Particle maximum lifetime in seconds */
+  /** Maximum particle lifetime */
   maxLifeTime?: number;
-  /** Whether the effect should loop */
+  /** Whether the effect loops */
   loop?: boolean;
-  /** How long the system should emit particles (0 = forever) */
+  /** Duration of emission (0 for infinite) */
   emitDuration?: number;
-  /** Color of particles (start) */
+  /** Starting color */
   startColor?: BABYLON.Color4;
-  /** Color of particles (end) */
+  /** Ending color */
   endColor?: BABYLON.Color4;
-  /** Size of particles (start) */
+  /** Minimum particle size */
   minSize?: number;
-  /** Size of particles (end) */
+  /** Maximum particle size */
   maxSize?: number;
-  /** Blendmode for the particles */
+  /** Blend mode for particles */
   blendMode?: number;
-  /** Direction of emission (normalized vector) */
+  /** Direction of emission */
   direction?: BABYLON.Vector3;
-  /** Angle of emission cone in radians */
+  /** Angle of emission cone */
   emitConeAngle?: number;
-  /** Min emission power (speed) */
+  /** Minimum emission power */
   minEmitPower?: number;
-  /** Max emission power (speed) */
+  /** Maximum emission power */
   maxEmitPower?: number;
-  /** Gravity effect on particles */
+  /** Gravity vector */
   gravity?: BABYLON.Vector3;
-  /** Custom capacity override */
-  capacity?: number;
-  /** Layer mask for visibility */
-  layerMask?: number;
-  /** Should emit on local axis */
+  /** Whether position is in local space */
   isLocal?: boolean;
-  /** Optional texture path */
+  /** Path to texture */
   texturePath?: string;
+  /** Internal flag to track if quality scaling was applied */
+  _qualityScaled?: boolean;
+  /** Capacity of the particle system */
+  capacity?: number;
+  /** Color gradient with start and end colors */
+  colorGradient?: { start: BABYLON.Color4; end: BABYLON.Color4 };
+  /** Update speed of the particle system */
+  updateSpeed?: number;
+  /** Direction vector 1 (creates a cone between direction1 and direction2) */
+  direction1?: BABYLON.Vector3;
+  /** Direction vector 2 (creates a cone between direction1 and direction2) */
+  direction2?: BABYLON.Vector3;
+  /** Layer mask for the particle system */
+  layerMask?: number;
+  /** Path to texture used for particles */
+  textureName?: string;
+  /** Billboard mode for the particle system */
+  billboardMode?: number;
+  /** Pre-warm cycles for the particle system */
+  preWarmCycles?: number;
 }
 
 /**

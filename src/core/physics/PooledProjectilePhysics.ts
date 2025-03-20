@@ -8,6 +8,8 @@ import { IProjectilePhysics, ProjectileConfig, ProjectileState, ProjectileImpact
 import { IPhysicsSystem } from './IPhysicsSystem';
 import { ICollisionSystem, CollisionInfo } from './ICollisionSystem';
 import { ObjectPool, IPoolable, IPoolObjectFactory } from '../utils/ObjectPool';
+import { Logger } from '../utils/Logger';
+import { ServiceLocator } from '../base/ServiceLocator';
 
 /**
  * Internal projectile data structure
@@ -285,6 +287,7 @@ export class PooledProjectilePhysics implements IProjectilePhysics {
   private physicsSystem: IPhysicsSystem | null = null;
   private collisionSystem: ICollisionSystem | null = null;
   private scene: BABYLON.Scene | null = null;
+  private logger: Logger;
   
   // Map of active projectiles by ID
   private activeProjectiles: Map<string, PoolableProjectile> = new Map();
@@ -301,11 +304,28 @@ export class PooledProjectilePhysics implements IProjectilePhysics {
    * @param maxPoolSize Maximum size of the pool (0 for unlimited)
    */
   constructor(initialPoolSize: number = 20, maxPoolSize: number = 100) {
+    // Initialize logger with default instance
+    this.logger = new Logger('PooledProjectilePhysics');
+    
+    // Try to get the logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add context tag
+        this.logger.addTag('PooledProjectilePhysics');
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to get logger from ServiceLocator: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    }
+    
     this.projectilePool = new ObjectPool<PoolableProjectile>(
       new ProjectileFactory(),
       initialPoolSize,
       maxPoolSize
     );
+    
+    this.logger.debug(`Created projectile pool with initial size ${initialPoolSize}, max size ${maxPoolSize}`);
   }
   
   /**
@@ -324,7 +344,9 @@ export class PooledProjectilePhysics implements IProjectilePhysics {
     }
     
     if (!this.scene) {
-      console.error('PooledProjectilePhysics: Failed to get scene from physics system');
+      this.logger.error('Failed to get scene from physics system');
+    } else {
+      this.logger.debug('Projectile physics system initialized successfully');
     }
   }
   
@@ -369,7 +391,9 @@ export class PooledProjectilePhysics implements IProjectilePhysics {
     onImpact?: ProjectileImpactCallback
   ): string {
     if (!this.scene || !this.physicsSystem) {
-      throw new Error('PooledProjectilePhysics: System not initialized');
+      const errorMsg = 'System not initialized';
+      this.logger.error(errorMsg);
+      throw new Error(`PooledProjectilePhysics: ${errorMsg}`);
     }
     
     // Create a unique ID for this projectile
@@ -400,6 +424,8 @@ export class PooledProjectilePhysics implements IProjectilePhysics {
     // Store in active projectiles map
     this.activeProjectiles.set(id, projectile);
     
+    this.logger.debug(`Created projectile ${id} at position [${start.x.toFixed(2)}, ${start.y.toFixed(2)}, ${start.z.toFixed(2)}] with velocity ${fullConfig.initialVelocity.toFixed(2)}`);
+    
     return id;
   }
   
@@ -410,7 +436,10 @@ export class PooledProjectilePhysics implements IProjectilePhysics {
    */
   public destroyProjectile(id: string, explode: boolean = false): void {
     const projectile = this.activeProjectiles.get(id);
-    if (!projectile) return;
+    if (!projectile) {
+      this.logger.warn(`Attempted to destroy non-existent projectile: ${id}`);
+      return;
+    }
     
     // Mark as inactive
     projectile.state.isActive = false;
@@ -427,9 +456,9 @@ export class PooledProjectilePhysics implements IProjectilePhysics {
           projectile.config.explosionForce,
           true
         );
+        
+        this.logger.debug(`Projectile ${id} exploded at [${projectile.state.position.x.toFixed(2)}, ${projectile.state.position.y.toFixed(2)}, ${projectile.state.position.z.toFixed(2)}] with radius ${projectile.config.explosionRadius} and force ${projectile.config.explosionForce}`);
       }
-      
-      // TODO: Add particle effects for explosion
     }
     
     // Remove from active projectiles
@@ -437,6 +466,8 @@ export class PooledProjectilePhysics implements IProjectilePhysics {
     
     // Return to pool
     this.projectilePool.release(projectile);
+    
+    this.logger.debug(`Destroyed projectile ${id}, exploded: ${explode}`);
   }
   
   /**
@@ -521,9 +552,11 @@ export class PooledProjectilePhysics implements IProjectilePhysics {
   /**
    * Performs cleanup of the system
    */
-  public destroy(): void {
+  public dispose(): void {
     // Destroy all active projectiles
     const projectileIds = Array.from(this.activeProjectiles.keys());
+    this.logger.debug(`Disposing projectile physics system with ${projectileIds.length} active projectiles`);
+    
     projectileIds.forEach(id => this.destroyProjectile(id, false));
     
     // Clear maps
@@ -533,5 +566,7 @@ export class PooledProjectilePhysics implements IProjectilePhysics {
     this.physicsSystem = null;
     this.collisionSystem = null;
     this.scene = null;
+    
+    this.logger.debug('Projectile physics system disposed');
   }
 } 

@@ -113,7 +113,7 @@ export class ParticleEffectsSystem extends System implements ISystem {
   /**
    * Initialize the particle effects system
    */
-  public async init(): Promise<void> {
+  public async initialize(): Promise<void> {
     // Get services using ServiceLocator
     const serviceLocator = ServiceLocator.getInstance();
     this.logger = serviceLocator.get<ILogger>('logger');

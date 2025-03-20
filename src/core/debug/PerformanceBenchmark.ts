@@ -9,6 +9,8 @@
 export interface BenchmarkResult {
   /** Name of the benchmark */
   name: string;
+  /** Display name of the benchmark */
+  displayName?: string;
   /** Duration of the benchmark in milliseconds */
   duration: number;
   /** Number of operations performed during the benchmark */
@@ -17,10 +19,40 @@ export interface BenchmarkResult {
   opsPerSecond: number;
   /** Memory used during the benchmark (if available) */
   memoryUsed?: number;
+  /** Average frames per second */
+  avgFps?: number;
+  /** Minimum frames per second */
+  minFps?: number;
+  /** Maximum frames per second */
+  maxFps?: number;
+  /** Maximum memory used in bytes */
+  maxMemory?: number;
+  /** Progress counter */
+  progress?: number;
   /** Additional custom metrics */
   customMetrics?: Record<string, number>;
   /** Timestamp when the benchmark was run */
   timestamp: number;
+}
+
+/**
+ * Defines a benchmark scenario
+ */
+export interface BenchmarkScenario<T = any> {
+  /** Unique name of the scenario */
+  name: string;
+  /** Display name for the scenario */
+  displayName: string;
+  /** Description of the scenario */
+  description: string;
+  /** Setup function called before the scenario runs */
+  setup: () => Promise<T>;
+  /** Function to run the scenario */
+  run: (context: T, onProgress: (progress: number) => void) => Promise<() => void>;
+  /** Teardown function called after the scenario completes */
+  teardown: () => Promise<void>;
+  /** Metrics to calculate from results */
+  metrics: Record<string, (result: BenchmarkResult) => number | string>;
 }
 
 /**
@@ -44,6 +76,22 @@ export interface BenchmarkOptions {
 }
 
 /**
+ * Configuration for the PerformanceBenchmark class
+ */
+export interface PerformanceBenchmarkConfig {
+  /** Babylon.js scene to monitor */
+  scene?: BABYLON.Scene;
+  /** Babylon.js engine to monitor */
+  engine?: BABYLON.Engine;
+  /** Whether to show UI for benchmark results */
+  showUI?: boolean;
+  /** Minimum duration of benchmarks in milliseconds */
+  minDuration?: number;
+  /** Maximum duration of benchmarks in milliseconds */
+  maxDuration?: number;
+}
+
+/**
  * Default benchmark options
  */
 const DEFAULT_BENCHMARK_OPTIONS: BenchmarkOptions = {
@@ -55,11 +103,216 @@ const DEFAULT_BENCHMARK_OPTIONS: BenchmarkOptions = {
 };
 
 /**
+ * Default configuration
+ */
+const DEFAULT_CONFIG: PerformanceBenchmarkConfig = {
+  showUI: false,
+  minDuration: 5000,  // 5 seconds
+  maxDuration: 30000  // 30 seconds
+};
+
+/**
  * Utility class for benchmarking performance
  */
 export class PerformanceBenchmark {
   private static results: BenchmarkResult[] = [];
   private static benchmarks: Record<string, BenchmarkResult[]> = {};
+  
+  private config: PerformanceBenchmarkConfig;
+  private scenarios: Map<string, BenchmarkScenario> = new Map();
+  
+  /**
+   * Create a new PerformanceBenchmark instance
+   * @param config Configuration options
+   */
+  constructor(config: PerformanceBenchmarkConfig = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+  
+  /**
+   * Define a benchmark scenario
+   * @param scenario The scenario definition
+   */
+  public defineScenario<T>(scenario: BenchmarkScenario<T>): void {
+    if (this.scenarios.has(scenario.name)) {
+      console.warn(`Scenario with name "${scenario.name}" already exists and will be overwritten`);
+    }
+    this.scenarios.set(scenario.name, scenario);
+  }
+  
+  /**
+   * Get a scenario by name
+   * @param name The name of the scenario
+   * @returns The scenario or undefined if not found
+   */
+  public getScenario<T>(name: string): BenchmarkScenario<T> | undefined {
+    return this.scenarios.get(name) as BenchmarkScenario<T> | undefined;
+  }
+  
+  /**
+   * Get all defined scenarios
+   * @returns Array of scenario names
+   */
+  public getScenarioNames(): string[] {
+    return Array.from(this.scenarios.keys());
+  }
+  
+  /**
+   * Run a benchmark scenario
+   * @param scenarioName Name of the scenario to run
+   * @param duration Duration to run the scenario in milliseconds
+   * @returns The benchmark result
+   */
+  public async runScenario(scenarioName: string, duration?: number): Promise<BenchmarkResult> {
+    const scenario = this.scenarios.get(scenarioName);
+    if (!scenario) {
+      throw new Error(`Scenario "${scenarioName}" not found`);
+    }
+    
+    const actualDuration = duration || this.config.minDuration || 5000;
+    
+    // Create result object
+    const result: BenchmarkResult = {
+      name: scenario.name,
+      displayName: scenario.displayName,
+      duration: 0,
+      operations: 0,
+      opsPerSecond: 0,
+      progress: 0,
+      timestamp: Date.now(),
+      avgFps: 0,
+      minFps: Infinity,
+      maxFps: 0,
+      maxMemory: 0
+    };
+    
+    try {
+      // Setup
+      const context = await scenario.setup();
+      
+      // Track performance data
+      let frameCount = 0;
+      let minFps = Infinity;
+      let maxFps = 0;
+      let lastTime = performance.now();
+      let maxMemory = 0;
+      
+      // Progress tracker
+      const onProgress = (progress: number) => {
+        result.progress = progress;
+      };
+      
+      // Performance monitoring
+      const performanceObserver = this.config.scene ? this.setupPerformanceObserver(
+        (fps, memory) => {
+          frameCount++;
+          minFps = Math.min(minFps, fps);
+          maxFps = Math.max(maxFps, fps);
+          maxMemory = Math.max(maxMemory, memory || 0);
+        }
+      ) : null;
+      
+      // Run the scenario
+      const startTime = performance.now();
+      const cleanup = await scenario.run(context, onProgress);
+      
+      // Wait until the duration expires
+      while (performance.now() - startTime < actualDuration) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // Run the cleanup function returned by the scenario
+      if (cleanup) {
+        cleanup();
+      }
+      
+      // Calculate metrics
+      const endTime = performance.now();
+      result.duration = endTime - startTime;
+      result.operations = result.progress || 0;
+      result.opsPerSecond = result.operations / (result.duration / 1000);
+      result.avgFps = frameCount / (result.duration / 1000);
+      result.minFps = minFps === Infinity ? 0 : minFps;
+      result.maxFps = maxFps;
+      result.maxMemory = maxMemory;
+      
+      // Stop performance monitoring
+      if (performanceObserver) {
+        performanceObserver();
+      }
+      
+      // Add custom metrics
+      result.customMetrics = {};
+      for (const [metricName, metricFn] of Object.entries(scenario.metrics)) {
+        const value = metricFn(result);
+        if (typeof value === 'number') {
+          result.customMetrics[metricName] = value;
+        }
+      }
+      
+      // Teardown
+      await scenario.teardown();
+      
+      // Store result
+      PerformanceBenchmark.results.push(result);
+      
+      if (!PerformanceBenchmark.benchmarks[scenario.name]) {
+        PerformanceBenchmark.benchmarks[scenario.name] = [];
+      }
+      PerformanceBenchmark.benchmarks[scenario.name].push(result);
+      
+      return result;
+    } catch (error) {
+      console.error(`Error running scenario "${scenarioName}":`, error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Setup performance observer for tracking FPS and memory
+   * @param callback Function to call with performance data
+   * @returns Function to stop observing
+   */
+  private setupPerformanceObserver(
+    callback: (fps: number, memory?: number) => void
+  ): () => void {
+    if (!this.config.scene || !this.config.engine) {
+      return () => {};
+    }
+    
+    const { scene, engine } = this.config;
+    let lastTime = performance.now();
+    let frames = 0;
+    
+    const observer = scene.onAfterRenderObservable.add(() => {
+      frames++;
+      const now = performance.now();
+      const elapsed = now - lastTime;
+      
+      // Calculate FPS every 500ms
+      if (elapsed >= 500) {
+        const fps = (frames / elapsed) * 1000;
+        let memory: number | undefined;
+        
+        // Get memory if available
+        if (window.performance && (performance as any).memory) {
+          memory = (performance as any).memory.usedJSHeapSize;
+        }
+        
+        callback(fps, memory);
+        
+        // Reset counters
+        lastTime = now;
+        frames = 0;
+      }
+    });
+    
+    return () => {
+      if (observer) {
+        scene.onAfterRenderObservable.remove(observer);
+      }
+    };
+  }
 
   /**
    * Run a benchmark synchronously
@@ -249,14 +502,14 @@ export class PerformanceBenchmark {
     const duration = endTime - startTime;
     
     if (name) {
-      console.log(`[Benchmark] ${name}: ${duration.toFixed(2)}ms`);
+      console.log(`[${name}] Execution time: ${duration.toFixed(2)}ms`);
     }
     
     return duration;
   }
 
   /**
-   * Measure the execution time of an async function
+   * Measure the execution time of an asynchronous function
    * @param fn Async function to measure
    * @param name Optional name for the measurement
    * @returns Promise resolving to the execution time in milliseconds
@@ -268,7 +521,7 @@ export class PerformanceBenchmark {
     const duration = endTime - startTime;
     
     if (name) {
-      console.log(`[Benchmark] ${name}: ${duration.toFixed(2)}ms`);
+      console.log(`[${name}] Execution time: ${duration.toFixed(2)}ms`);
     }
     
     return duration;
@@ -276,16 +529,16 @@ export class PerformanceBenchmark {
 
   /**
    * Get all benchmark results
-   * @returns Array of all benchmark results
+   * @returns Array of benchmark results
    */
   public static getAllResults(): BenchmarkResult[] {
     return [...PerformanceBenchmark.results];
   }
 
   /**
-   * Get benchmark results for a specific benchmark
+   * Get benchmark results for a specific benchmark name
    * @param name Name of the benchmark
-   * @returns Array of benchmark results or empty array if none found
+   * @returns Array of benchmark results for the given name
    */
   public static getResultsByName(name: string): BenchmarkResult[] {
     return PerformanceBenchmark.benchmarks[name] || [];
@@ -301,76 +554,66 @@ export class PerformanceBenchmark {
 
   /**
    * Compare two benchmarks
-   * @param benchmark1 First benchmark name
-   * @param benchmark2 Second benchmark name
-   * @returns Comparison result as a formatted string
+   * @param benchmark1 Name of the first benchmark
+   * @param benchmark2 Name of the second benchmark
+   * @returns Comparison as a string
    */
   public static compareBenchmarks(benchmark1: string, benchmark2: string): string {
     const results1 = PerformanceBenchmark.getResultsByName(benchmark1);
     const results2 = PerformanceBenchmark.getResultsByName(benchmark2);
     
     if (results1.length === 0 || results2.length === 0) {
-      return `Cannot compare benchmarks: one or both benchmarks not found`;
+      return `Cannot compare: missing results for ${results1.length === 0 ? benchmark1 : benchmark2}`;
     }
     
-    // Use the most recent result from each benchmark
-    const result1 = results1[results1.length - 1];
-    const result2 = results2[results2.length - 1];
+    // Calculate averages
+    const avg1 = results1.reduce((sum, r) => sum + r.opsPerSecond, 0) / results1.length;
+    const avg2 = results2.reduce((sum, r) => sum + r.opsPerSecond, 0) / results2.length;
     
-    const durationDiff = ((result2.duration - result1.duration) / result1.duration) * 100;
-    const opsDiff = ((result2.opsPerSecond - result1.opsPerSecond) / result1.opsPerSecond) * 100;
+    // Calculate percentage difference
+    const diff = avg1 - avg2;
+    const percentDiff = (diff / avg2) * 100;
     
-    let memoryComparison = '';
-    if (result1.memoryUsed !== undefined && result2.memoryUsed !== undefined) {
-      const memoryDiff = ((result2.memoryUsed - result1.memoryUsed) / result1.memoryUsed) * 100;
-      memoryComparison = `Memory: ${memoryDiff >= 0 ? '+' : ''}${memoryDiff.toFixed(2)}%`;
-    }
+    // Determine which is faster
+    const faster = avg1 > avg2 ? benchmark1 : benchmark2;
+    const slower = faster === benchmark1 ? benchmark2 : benchmark1;
+    const absDiff = Math.abs(percentDiff);
     
-    return `
-Comparison: ${benchmark1} vs ${benchmark2}
---------------------------------------------
-Duration: ${durationDiff >= 0 ? '+' : ''}${durationDiff.toFixed(2)}% (${result1.duration.toFixed(2)}ms vs ${result2.duration.toFixed(2)}ms)
-Operations/sec: ${opsDiff >= 0 ? '+' : ''}${opsDiff.toFixed(2)}% (${result1.opsPerSecond.toFixed(2)} vs ${result2.opsPerSecond.toFixed(2)})
-${memoryComparison}
-    `.trim();
+    return `${faster} is ${absDiff.toFixed(2)}% faster than ${slower}`;
   }
 
   /**
    * Generate a report of all benchmarks
-   * @returns Formatted benchmark report string
+   * @returns Report as a string
    */
   public static generateReport(): string {
     if (PerformanceBenchmark.results.length === 0) {
-      return 'No benchmarks have been run.';
+      return 'No benchmark results available.';
     }
     
-    let report = 'Performance Benchmark Report\n';
-    report += '============================\n\n';
+    let report = '=== BENCHMARK REPORT ===\n\n';
     
     // Group by benchmark name
     Object.keys(PerformanceBenchmark.benchmarks).forEach(name => {
       const benchmarks = PerformanceBenchmark.benchmarks[name];
-      const latestBenchmark = benchmarks[benchmarks.length - 1];
       
-      report += `Benchmark: ${name}\n`;
-      report += `  Last run: ${new Date(latestBenchmark.timestamp).toISOString()}\n`;
-      report += `  Duration: ${latestBenchmark.duration.toFixed(2)}ms\n`;
-      report += `  Operations: ${latestBenchmark.operations}\n`;
-      report += `  Operations/sec: ${latestBenchmark.opsPerSecond.toFixed(2)}\n`;
+      // Calculate statistics
+      const opsSec = benchmarks.map(b => b.opsPerSecond);
+      const avgOpsSec = opsSec.reduce((sum, ops) => sum + ops, 0) / opsSec.length;
+      const minOpsSec = Math.min(...opsSec);
+      const maxOpsSec = Math.max(...opsSec);
       
-      if (latestBenchmark.memoryUsed !== undefined) {
-        report += `  Memory used: ${(latestBenchmark.memoryUsed / (1024 * 1024)).toFixed(2)} MB\n`;
-      }
+      report += `## ${name}\n`;
+      report += `Runs: ${benchmarks.length}\n`;
+      report += `Avg ops/sec: ${avgOpsSec.toFixed(2)}\n`;
+      report += `Min ops/sec: ${minOpsSec.toFixed(2)}\n`;
+      report += `Max ops/sec: ${maxOpsSec.toFixed(2)}\n`;
       
-      if (benchmarks.length > 1) {
-        // Calculate trends
-        const firstBenchmark = benchmarks[0];
-        const durationDiff = ((latestBenchmark.duration - firstBenchmark.duration) / firstBenchmark.duration) * 100;
-        const opsDiff = ((latestBenchmark.opsPerSecond - firstBenchmark.opsPerSecond) / firstBenchmark.opsPerSecond) * 100;
-        
-        report += `  Trend since first run:\n`;
-        report += `    Duration: ${durationDiff >= 0 ? '+' : ''}${durationDiff.toFixed(2)}%\n`;
-        report += `    Operations/sec: ${opsDiff >= 0 ? '+' : ''}${opsDiff.toFixed(2)}%\n`;
+      // Add memory usage if available
+      const memoryBenchmarks = benchmarks.filter(b => b.memoryUsed !== undefined);
+      if (memoryBenchmarks.length > 0) {
+        const avgMemory = memoryBenchmarks.reduce((sum, b) => sum + (b.memoryUsed || 0), 0) / memoryBenchmarks.length;
+        report += `Avg memory: ${(avgMemory / (1024 * 1024)).toFixed(2)} MB\n`;
       }
       
       report += '\n';
@@ -381,16 +624,17 @@ ${memoryComparison}
 
   /**
    * Log a benchmark result to the console
-   * @param result Benchmark result to log
+   * @param result The benchmark result to log
    */
   private static logResult(result: BenchmarkResult): void {
-    console.log(`
-[Benchmark] ${result.name}
-  Duration: ${result.duration.toFixed(2)}ms
-  Operations: ${result.operations}
-  Operations/sec: ${result.opsPerSecond.toFixed(2)}
-  ${result.memoryUsed !== undefined ? `Memory used: ${(result.memoryUsed / (1024 * 1024)).toFixed(2)} MB` : ''}
-    `.trim());
+    console.log(
+      `Benchmark [${result.name}]: ${result.operations} ops in ${result.duration.toFixed(2)}ms ` +
+      `(${result.opsPerSecond.toFixed(2)} ops/sec)`
+    );
+    
+    if (result.memoryUsed) {
+      console.log(`Memory used: ${(result.memoryUsed / (1024 * 1024)).toFixed(2)} MB`);
+    }
   }
 
   /**
@@ -404,7 +648,7 @@ ${memoryComparison}
   /**
    * Import benchmark results from JSON
    * @param json JSON string of benchmark results
-   * @returns True if import was successful
+   * @returns Whether the import was successful
    */
   public static importFromJSON(json: string): boolean {
     try {
@@ -414,21 +658,10 @@ ${memoryComparison}
         return false;
       }
       
-      // Validate each result
-      for (const result of results) {
-        if (typeof result.name !== 'string' ||
-            typeof result.duration !== 'number' ||
-            typeof result.operations !== 'number' ||
-            typeof result.opsPerSecond !== 'number' ||
-            typeof result.timestamp !== 'number') {
-          return false;
-        }
-      }
-      
-      // Import valid results
+      // Replace current results
       PerformanceBenchmark.results = results;
       
-      // Rebuild benchmarks by name
+      // Rebuild benchmarks map
       PerformanceBenchmark.benchmarks = {};
       for (const result of results) {
         if (!PerformanceBenchmark.benchmarks[result.name]) {
@@ -438,8 +671,8 @@ ${memoryComparison}
       }
       
       return true;
-    } catch (error) {
-      console.error('Error importing benchmark results:', error);
+    } catch (e) {
+      console.error('Failed to import benchmark results:', e);
       return false;
     }
   }

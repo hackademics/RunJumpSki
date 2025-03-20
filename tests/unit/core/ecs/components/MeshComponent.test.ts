@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file tests/unit/core/ecs/components/MeshComponent.test.ts
  * @description Unit tests for MeshComponent
  */
@@ -123,7 +123,7 @@ describe('MeshComponent', () => {
     const component = new MeshComponent();
     const initSpy = jest.spyOn(component, 'init');
     
-    component.init(entity);
+    component.initialize(entity);
     
     expect(initSpy).toHaveBeenCalledWith(entity);
   });
@@ -314,7 +314,7 @@ describe('MeshComponent', () => {
     const applyTransformSpy = jest.spyOn(component, 'applyTransform');
     
     // Init with entity
-    component.init(entity);
+    component.initialize(entity);
     
     // Disable component
     component.setEnabled(false);
@@ -337,4 +337,5 @@ describe('MeshComponent', () => {
     expect(component.getMaterial()).toBeNull();
   });
 });
+
 

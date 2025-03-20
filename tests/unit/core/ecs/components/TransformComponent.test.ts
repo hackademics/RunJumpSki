@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file tests/unit/core/ecs/components/TransformComponent.test.ts
  * @description Unit tests for TransformComponent
  */
@@ -28,7 +28,7 @@ describe('TransformComponent', () => {
     });
 
     test('should initialize properly', () => {
-        component.init(entity);
+        component.initialize(entity);
         expect(component.entity).toBe(entity);
     });
 
@@ -240,4 +240,5 @@ describe('TransformComponent', () => {
         parentTransform.dispose();
     });
 });
+
 

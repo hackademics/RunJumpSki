@@ -12,9 +12,20 @@ import {
   JetpackEffectOptions,
   SkiTrailEffectOptions,
   ProjectileTrailEffectOptions,
-  ExtendedParticleEffectOptions 
+  ExtendedParticleEffectOptions,
+  ParticleSystemFromPresetOptions
 } from './IParticleSystemManager';
 import { ObjectPool, IPoolable, IPoolObjectFactory } from '../../utils/ObjectPool';
+
+/**
+ * Extended particle system with sprite sheet properties
+ */
+interface SpriteSheetParticleSystem extends BABYLON.IParticleSystem {
+  /** Width of a sprite cell */
+  cellWidth?: number;
+  /** Height of a sprite cell */
+  cellHeight?: number;
+}
 
 // Define the configuration type for particle effects
 type ParticleEffectConfig = ExtendedParticleEffectOptions & {
@@ -135,7 +146,9 @@ class PoolableParticleSystem implements IPoolable {
     this.applyConfiguration();
     
     // Set whether it should loop
-    this.particleSystem.targetStopDuration = this.isLooping ? 0 : this.config.duration;
+    // Ensure the duration is a number or default to 0 if looping, a default value if not
+    const duration = this.isLooping ? 0 : (this.config.duration !== undefined ? this.config.duration : 5);
+    this.particleSystem.targetStopDuration = duration;
     
     // If not looping and auto-dispose is set, register an observer for when particles end
     if (!this.isLooping && this.autoDispose) {
@@ -143,9 +156,17 @@ class PoolableParticleSystem implements IPoolable {
         if (this.isActive) {
           this.isActive = false;
           // Wait for all particles to be gone before disposing
+          // Ensure lifetime is a number or default to a reasonable value
+          const lifetime = this.config && this.config.lifetime !== undefined ? this.config.lifetime : 1000;
+          
+          // Use type assertion to avoid "possibly undefined" errors
+          // We know config exists here since we're in the particle system context
+          const config = this.config as ParticleEffectConfig;
           setTimeout(() => {
-            this.config?.onCompleted?.(this.id);
-          }, this.config.lifetime || 1000);
+            if (config.onCompleted) {
+              config.onCompleted(this.id);
+            }
+          }, lifetime);
         }
       });
     }
@@ -235,7 +256,12 @@ class PoolableParticleSystem implements IPoolable {
     
     // Additional configuration options
     if (config.updateSpeed !== undefined) ps.updateSpeed = config.updateSpeed;
-    if (config.targetStopDuration !== undefined) ps.targetStopDuration = config.targetStopDuration;
+    
+    // Safely handle targetStopDuration
+    if (config.targetStopDuration !== undefined) {
+      ps.targetStopDuration = config.targetStopDuration;
+    }
+    
     if (config.billboardMode !== undefined) ps.billboardMode = config.billboardMode;
     
     // Advanced effects
@@ -247,8 +273,8 @@ class PoolableParticleSystem implements IPoolable {
       if (config.spriteCellWidth !== undefined && config.spriteCellHeight !== undefined) {
         // Handle sprite cell dimensions using BabylonJS API
         if ('cellWidth' in ps) {
-          (ps as any).cellWidth = config.spriteCellWidth;
-          (ps as any).cellHeight = config.spriteCellHeight;
+          (ps as SpriteSheetParticleSystem).cellWidth = config.spriteCellWidth;
+          (ps as SpriteSheetParticleSystem).cellHeight = config.spriteCellHeight;
         }
       }
       if (config.startSpriteCellID !== undefined) ps.startSpriteCellID = config.startSpriteCellID;
@@ -637,7 +663,7 @@ export class PooledParticleSystemManager implements IParticleSystemManager {
    * @param options Options for creating the particle system from preset
    * @returns ID of the created particle system
    */
-  public createParticleSystemFromPreset(options: any): string | null {
+  public createParticleSystemFromPreset(options: ParticleSystemFromPresetOptions): string | null {
     // Not implemented in pooled version
     return null;
   }

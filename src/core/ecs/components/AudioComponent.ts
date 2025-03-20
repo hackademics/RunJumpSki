@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file src/core/ecs/components/AudioComponent.ts
  * @description Implementation of the Audio Component that manages sound functionality
  */
@@ -96,8 +96,8 @@ export class AudioComponent extends Component implements IAudioComponent {
    * 
    * @param entity The entity to which this component is being added
    */
-  public override init(entity: IEntity): void {
-    super.init(entity);
+  public override initialize(entity: IEntity): void {
+    super.initialize(entity);
     this.logger.debug('AudioComponent initialized');
   }
   
@@ -443,4 +443,6 @@ export class AudioComponent extends Component implements IAudioComponent {
     }
   }
 }
+
+
 

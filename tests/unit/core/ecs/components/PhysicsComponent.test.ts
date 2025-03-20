@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file tests/unit/core/ecs/components/PhysicsComponent.test.ts
  * @description Unit tests for PhysicsComponent
  */
@@ -141,7 +141,7 @@ describe('PhysicsComponent', () => {
   
   test('should create impostor on initialization', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Verify impostor creation
     expect(BABYLON.PhysicsImpostor).toHaveBeenCalled();
@@ -150,7 +150,7 @@ describe('PhysicsComponent', () => {
   
   test('should not create impostor when createImpostorOnInit is false', () => {
     const component = new PhysicsComponent({ createImpostorOnInit: false });
-    component.init(entity);
+    component.initialize(entity);
     
     // Verify impostor was not created
     expect(component.getImpostor()).toBeNull();
@@ -158,7 +158,7 @@ describe('PhysicsComponent', () => {
   
   test('should create impostor manually', () => {
     const component = new PhysicsComponent({ createImpostorOnInit: false });
-    component.init(entity);
+    component.initialize(entity);
     
     // Manually create impostor
     component.createImpostor();
@@ -170,7 +170,7 @@ describe('PhysicsComponent', () => {
   
   test('should set and get mass', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     component.setMass(5.0);
     
@@ -180,7 +180,7 @@ describe('PhysicsComponent', () => {
   
   test('should clamp negative mass to 0', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     component.setMass(-1.0);
     
@@ -189,7 +189,7 @@ describe('PhysicsComponent', () => {
   
   test('should set and get restitution', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     component.setRestitution(0.7);
     
@@ -199,7 +199,7 @@ describe('PhysicsComponent', () => {
   
   test('should clamp restitution between 0 and 1', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     component.setRestitution(-0.5);
     expect(component.getRestitution()).toBe(0);
@@ -210,7 +210,7 @@ describe('PhysicsComponent', () => {
   
   test('should set and get friction', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     component.setFriction(0.8);
     
@@ -220,7 +220,7 @@ describe('PhysicsComponent', () => {
   
   test('should clamp friction between 0 and 1', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     component.setFriction(-0.5);
     expect(component.getFriction()).toBe(0);
@@ -231,7 +231,7 @@ describe('PhysicsComponent', () => {
   
   test('should set and get linear velocity', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     const velocity = new BABYLON.Vector3(1, 2, 3);
     component.setLinearVelocity(velocity);
@@ -242,7 +242,7 @@ describe('PhysicsComponent', () => {
   
   test('should set and get angular velocity', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     const velocity = new BABYLON.Vector3(1, 2, 3);
     component.setAngularVelocity(velocity);
@@ -253,7 +253,7 @@ describe('PhysicsComponent', () => {
   
   test('should apply impulse force', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     const force = new BABYLON.Vector3(10, 0, 0);
     component.applyImpulse(force);
@@ -263,7 +263,7 @@ describe('PhysicsComponent', () => {
   
   test('should apply impulse force at a specific point', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     const force = new BABYLON.Vector3(10, 0, 0);
     const point = new BABYLON.Vector3(1, 1, 1);
@@ -274,7 +274,7 @@ describe('PhysicsComponent', () => {
   
   test('should apply continuous force', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     const force = new BABYLON.Vector3(10, 0, 0);
     component.applyForce(force);
@@ -284,7 +284,7 @@ describe('PhysicsComponent', () => {
   
   test('should apply torque impulse', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     const torque = new BABYLON.Vector3(0, 1, 0);
     component.applyTorqueImpulse(torque);
@@ -294,7 +294,7 @@ describe('PhysicsComponent', () => {
   
   test('should set and get gravity enabled', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     component.setGravityEnabled(false);
     
@@ -304,7 +304,7 @@ describe('PhysicsComponent', () => {
   
   test('should set and get trigger state', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     component.setTrigger(true);
     
@@ -314,7 +314,7 @@ describe('PhysicsComponent', () => {
   
   test('should lock motion axes', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Mock linear velocity
     mockImpostor.getLinearVelocity.mockReturnValue(new BABYLON.Vector3(1, 2, 3));
@@ -335,7 +335,7 @@ describe('PhysicsComponent', () => {
   
   test('should lock rotation axes', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Mock angular velocity
     mockImpostor.getAngularVelocity.mockReturnValue(new BABYLON.Vector3(1, 2, 3));
@@ -356,7 +356,7 @@ describe('PhysicsComponent', () => {
   
   test('should register collision callback', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     const callback = jest.fn();
     component.onCollide(callback);
@@ -366,7 +366,7 @@ describe('PhysicsComponent', () => {
   
   test('should sync to transform', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Set up transform spy
     const setPositionSpy = jest.spyOn(transformComponent, 'setPosition');
@@ -390,7 +390,7 @@ describe('PhysicsComponent', () => {
   
   test('should sync physics from transform', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Sync from transform to physics
     component.syncTransform();
@@ -402,7 +402,7 @@ describe('PhysicsComponent', () => {
   
   test('should auto-sync transform during update', () => {
     const component = new PhysicsComponent({ autoSyncTransform: true });
-    component.init(entity);
+    component.initialize(entity);
     
     // Spy on syncToTransform
     const syncSpy = jest.spyOn(component, 'syncToTransform');
@@ -416,7 +416,7 @@ describe('PhysicsComponent', () => {
   
   test('should not sync transform when disabled', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     // Spy on syncToTransform
     const syncSpy = jest.spyOn(component, 'syncToTransform');
@@ -433,7 +433,7 @@ describe('PhysicsComponent', () => {
   
   test('should clean up resources on dispose', () => {
     const component = new PhysicsComponent();
-    component.init(entity);
+    component.initialize(entity);
     
     component.dispose();
     
@@ -444,4 +444,5 @@ describe('PhysicsComponent', () => {
     expect(component.getImpostor()).toBeNull();
   });
 });
+
 

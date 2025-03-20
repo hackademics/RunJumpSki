@@ -9,15 +9,28 @@ import {
   QualityLevel,
   DEFAULT_ADAPTIVE_RENDERING_CONFIG 
 } from '../../../../src/core/renderer/AdaptiveRenderingSystem';
-import { IPerformanceMetricsManager, PerformanceMetrics } from '../../../../src/core/debug/metrics/IPerformanceMetricsManager';
+import { IPerformanceMetricsManager, PerformanceMetrics, MetricsTimePoint } from '../../../../src/core/debug/metrics/IPerformanceMetricsManager';
 import { ITerrainRenderer } from '../../../../src/core/renderer/terrain/ITerrainRenderer';
-import { IParticleSystemManager } from '../../../../src/core/renderer/particles/IParticleSystemManager';
-import { IPostProcessingManager } from '../../../../src/core/renderer/effects/IPostProcessingManager';
+import { 
+  IParticleSystemManager, 
+  ParticleEffectType, 
+  ParticleEffectOptions, 
+  ExplosionEffectOptions, 
+  JetpackEffectOptions, 
+  SkiTrailEffectOptions, 
+  ProjectileTrailEffectOptions,
+  ParticleSystemFromPresetOptions
+} from '../../../../src/core/renderer/particles/IParticleSystemManager';
+import { 
+  IPostProcessingManager, 
+  PostProcessEffectType, 
+  PostProcessEffectOptions 
+} from '../../../../src/core/renderer/effects/IPostProcessingManager';
 import { TerrainQuality } from '../../../../src/core/renderer/terrain/TerrainRenderer';
 
 // Mock classes
 class MockScene {
-  public lights: any[] = [];
+  public lights: BABYLON.Light[] = [];
   public shadowsEnabled: boolean = true;
   
   getEngine() {
@@ -44,7 +57,7 @@ class MockPerformanceMetricsManager implements IPerformanceMetricsManager {
     };
   }
   
-  getMetricsHistory(count?: number): any[] { return []; }
+  getMetricsHistory(count?: number): MetricsTimePoint[] { return []; }
   registerCustomMetric(name: string, initialValue: number): void {}
   updateCustomMetric(name: string, value: number): void {}
   getAverageMetrics(seconds: number): PerformanceMetrics { 
@@ -62,6 +75,38 @@ class MockTerrainRenderer implements ITerrainRenderer {
   public quality: TerrainQuality = TerrainQuality.MEDIUM;
   public viewDistance: number = 2000;
   
+  // Fixed initialize method to return Promise
+  async initialize(
+    heightData: Float32Array,
+    width: number,
+    height: number,
+    terrainSize: BABYLON.Vector3
+  ): Promise<void> {
+    // Just resolve immediately
+    return Promise.resolve();
+  }
+  
+  getHeightAtPosition(position: BABYLON.Vector3): number | null {
+    return 0;
+  }
+  
+  applyTexturesBySlope(
+    textures: string[],
+    slopeThresholds: number[],
+    heightThresholds: number[],
+    tiling?: number
+  ): void {
+    // Mock implementation
+  }
+  
+  updateConfig(config: Record<string, any>): void {
+    // Mock implementation
+  }
+  
+  getStats(): Record<string, any> {
+    return { triangles: 1000, drawCalls: 5 };
+  }
+  
   setQuality(quality: TerrainQuality): void {
     this.quality = quality;
   }
@@ -75,7 +120,6 @@ class MockTerrainRenderer implements ITerrainRenderer {
   }
   
   // Other required methods with minimal implementation
-  initialize(): void {}
   createTerrain(): void {}
   update(deltaTime: number): void {}
   setWireframe(enabled: boolean): void {}
@@ -98,26 +142,66 @@ class MockParticleSystemManager implements IParticleSystemManager {
   
   // Required interface methods with minimal implementation
   initialize(scene: BABYLON.Scene): void {}
-  createEffect(type: any, emitter: any, options?: any): string | null { return null; }
-  registerExternalParticleSystem(name: string, particleSystem: any): string { return ''; }
-  setEmitting(id: string, emitting: boolean): boolean { return false; }
-  getParticleSystem(id: string): any { return null; }
-  getParticleSystemsByType(type: any): any[] { return []; }
-  startEffect(id: string): boolean { return false; }
-  stopEffect(id: string, immediate?: boolean): boolean { return false; }
-  updateEffect(id: string, options: any): boolean { return false; }
-  createExplosion(position: BABYLON.Vector3, options?: any): string | null { return null; }
-  createJetpackEffect(emitter: BABYLON.AbstractMesh, options?: any): string | null { return null; }
-  createSkiTrailEffect(emitter: BABYLON.AbstractMesh, options?: any): string | null { return null; }
-  createProjectileTrailEffect(emitter: BABYLON.AbstractMesh, options?: any): string | null { return null; }
-  disposeEffect(id: string): boolean { return false; }
+  createEffect(
+    type: ParticleEffectType, 
+    emitter: BABYLON.AbstractMesh | BABYLON.Vector3, 
+    options?: ParticleEffectOptions
+  ): string | null { 
+    return null; 
+  }
+  registerExternalParticleSystem(name: string, particleSystem: BABYLON.ParticleSystem): string { 
+    return ''; 
+  }
+  setEmitting(id: string, emitting: boolean): boolean { 
+    return false; 
+  }
+  getParticleSystem(id: string): BABYLON.IParticleSystem | null { 
+    return null; 
+  }
+  getParticleSystemsByType(type: ParticleEffectType): BABYLON.IParticleSystem[] { 
+    return []; 
+  }
+  startEffect(id: string): boolean { 
+    return false; 
+  }
+  stopEffect(id: string, immediate?: boolean): boolean { 
+    return false; 
+  }
+  updateEffect(id: string, options: ParticleEffectOptions): boolean { 
+    return false; 
+  }
+  createExplosion(position: BABYLON.Vector3, options?: ExplosionEffectOptions): string | null { 
+    return null; 
+  }
+  createJetpackEffect(emitter: BABYLON.AbstractMesh, options?: JetpackEffectOptions): string | null { 
+    return null; 
+  }
+  createSkiTrailEffect(emitter: BABYLON.AbstractMesh, options?: SkiTrailEffectOptions): string | null { 
+    return null; 
+  }
+  createProjectileTrailEffect(emitter: BABYLON.AbstractMesh, options?: ProjectileTrailEffectOptions): string | null { 
+    return null; 
+  }
+  disposeEffect(id: string): boolean { 
+    return false; 
+  }
   disposeAll(): void {}
-  updateEmitterPosition(id: string, position: BABYLON.Vector3): boolean { return false; }
-  updateEmitRate(id: string, emitRate: number): boolean { return false; }
-  setSystemVisible(id: string, visible: boolean): boolean { return false; }
-  removeParticleSystem(id: string): boolean { return false; }
+  updateEmitterPosition(id: string, position: BABYLON.Vector3): boolean { 
+    return false; 
+  }
+  updateEmitRate(id: string, emitRate: number): boolean { 
+    return false; 
+  }
+  setSystemVisible(id: string, visible: boolean): boolean { 
+    return false; 
+  }
+  removeParticleSystem(id: string): boolean { 
+    return false; 
+  }
   dispose(): void {}
-  createParticleSystemFromPreset(options: any): string | null { return null; }
+  createParticleSystemFromPreset(options: ParticleSystemFromPresetOptions): string | null { 
+    return null; 
+  }
 }
 
 class MockPostProcessingManager implements IPostProcessingManager {
@@ -125,30 +209,46 @@ class MockPostProcessingManager implements IPostProcessingManager {
   public dofEnabled: boolean = false;
   public aoEnabled: boolean = true;
   
-  enableBloom(enabled: boolean): void {
+  enableBloom(enabled: boolean): boolean {
     this.bloomEnabled = enabled;
+    return true;
   }
   
-  enableDepthOfField(enabled: boolean): void {
+  enableDepthOfField(enabled: boolean): boolean {
     this.dofEnabled = enabled;
+    return true;
   }
   
-  enableAmbientOcclusion(enabled: boolean): void {
+  enableAmbientOcclusion(enabled: boolean): boolean {
     this.aoEnabled = enabled;
+    return true;
   }
   
   // Other required methods with minimal implementation
   initialize(scene: BABYLON.Scene): void {}
   createDefaultPipeline(): void {}
-  setPipelineEnabled(enabled: boolean): void {}
-  setBloomIntensity(intensity: number): void {}
-  setDepthOfFieldFocalLength(focalLength: number): void {}
-  setAmbientOcclusionRadius(radius: number): void {}
+  setPipelineEnabled(enabled: boolean): boolean { return true; }
+  setBloomIntensity(intensity: number): boolean { return true; }
+  setDepthOfFieldFocalLength(focalLength: number): boolean { return true; }
+  setAmbientOcclusionRadius(radius: number): boolean { return true; }
   dispose(): void {}
+  
+  // Additional required methods from interface
+  addEffect(type: PostProcessEffectType, options?: PostProcessEffectOptions): boolean { return true; }
+  removeEffect(type: PostProcessEffectType): boolean { return true; }
+  getEffect(type: PostProcessEffectType): BABYLON.PostProcess | null { return null; }
+  enableEffect(type: PostProcessEffectType): boolean { return true; }
+  disableEffect(type: PostProcessEffectType): boolean { return true; }
+  updateEffectOptions(type: PostProcessEffectType, options: PostProcessEffectOptions): boolean { return true; }
+  configureBloom(options: any): boolean { return true; }
+  configureMotionBlur(options: any): boolean { return true; }
+  configureDepthOfField(options: any): boolean { return true; }
+  configureColorCorrection(options: any): boolean { return true; }
+  resetEffects(): void {}
 }
 
 describe('AdaptiveRenderingSystem', () => {
-  let scene: any;
+  let scene: BABYLON.Scene;
   let metricsManager: MockPerformanceMetricsManager;
   let terrainRenderer: MockTerrainRenderer;
   let particleSystemManager: MockParticleSystemManager;
@@ -157,7 +257,7 @@ describe('AdaptiveRenderingSystem', () => {
   
   beforeEach(() => {
     // Set up mocks
-    scene = new MockScene();
+    scene = new MockScene() as unknown as BABYLON.Scene;
     metricsManager = new MockPerformanceMetricsManager();
     terrainRenderer = new MockTerrainRenderer();
     particleSystemManager = new MockParticleSystemManager();
@@ -165,15 +265,15 @@ describe('AdaptiveRenderingSystem', () => {
     
     // Create system with default config
     adaptiveSystem = new AdaptiveRenderingSystem(
-      scene as unknown as BABYLON.Scene,
-      metricsManager as unknown as IPerformanceMetricsManager
+      scene,
+      metricsManager
     );
     
     // Initialize with mock components
     adaptiveSystem.initialize(
-      terrainRenderer as unknown as ITerrainRenderer,
-      particleSystemManager as unknown as IParticleSystemManager,
-      postProcessingManager as unknown as IPostProcessingManager
+      terrainRenderer,
+      particleSystemManager,
+      postProcessingManager
     );
   });
   

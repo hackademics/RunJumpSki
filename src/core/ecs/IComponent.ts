@@ -43,7 +43,7 @@ export interface IComponent {
    * 
    * @param entity The entity to which this component is being added
    */
-  init(entity: IEntity): void;
+  initialize(entity: IEntity): void;
 
   /**
    * Update the component's state

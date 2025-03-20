@@ -52,7 +52,7 @@ export class RenderComponent implements IRenderComponent {
    * Initializes the component with an entity
    * @param entity The entity to attach to
    */
-  public init(entity: IEntity): void {
+  public initialize(entity: IEntity): void {
     this.entity = entity;
   }
   
@@ -123,3 +123,4 @@ export class RenderComponent implements IRenderComponent {
     return this.entity;
   }
 }
+

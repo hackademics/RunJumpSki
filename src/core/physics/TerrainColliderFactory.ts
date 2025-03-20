@@ -31,11 +31,8 @@ export class TerrainColliderFactory {
    * @returns A new terrain collider instance
    */
   public static create(config: TerrainColliderConfig): ITerrainCollider {
-    // Create a new terrain collider
-    const terrainCollider = new TerrainCollider();
-    
-    // Initialize with the scene
-    terrainCollider.initialize(config.scene);
+    // Create a new terrain collider with the scene
+    const terrainCollider = new TerrainCollider(config.scene);
     
     // Set the heightmap data if provided
     if (config.heightmapData) {
@@ -81,9 +78,8 @@ export class TerrainColliderFactory {
       }>;
     } = {}
   ): Promise<ITerrainCollider> {
-    // Create a terrain collider
-    const terrainCollider = new TerrainCollider();
-    terrainCollider.initialize(scene);
+    // Create a terrain collider with the scene
+    const terrainCollider = new TerrainCollider(scene);
     
     // Load the heightmap
     const heightmapData = await this.loadHeightmapFromUrl(
@@ -204,9 +200,8 @@ export class TerrainColliderFactory {
       region?: { x1: number; z1: number; x2: number; z2: number };
     }>
   ): ITerrainCollider {
-    // Create a terrain collider
-    const terrainCollider = new TerrainCollider();
-    terrainCollider.initialize(scene);
+    // Create a terrain collider with the scene
+    const terrainCollider = new TerrainCollider(scene);
     
     // Set the terrain mesh
     terrainCollider.setTerrainMesh(mesh);

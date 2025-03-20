@@ -15,7 +15,7 @@ interface Subscription<T extends IEvent> {
  * Implementation of the IEventDispatcher interface
  */
 export class EventDispatcher implements IEventDispatcher {
-  private subscriptions: Map<string, Subscription<any>[]> = new Map();
+  private subscriptions: Map<string, Array<Subscription<IEvent>>> = new Map();
   private logger?: ILogger;
   
   /**
@@ -48,7 +48,8 @@ export class EventDispatcher implements IEventDispatcher {
       this.subscriptions.set(eventType, []);
     }
     
-    this.subscriptions.get(eventType)!.push(subscription);
+    // Cast handler to ensure type compatibility
+    this.subscriptions.get(eventType)!.push(subscription as unknown as Subscription<IEvent>);
     
     this.logger?.debug(`Subscribed to event ${eventType} with ID ${subscriptionId}`);
     
@@ -104,9 +105,12 @@ export class EventDispatcher implements IEventDispatcher {
     // Call each handler with the event
     for (const { handler } of handlers) {
       try {
-        handler(event);
+        // Cast the handler to ensure type compatibility
+        (handler as EventHandler<T>)(event);
       } catch (error) {
-        this.logger?.error(`Error in event handler for ${eventType}:`, error);
+        // Convert error to string to ensure it can be logged properly
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger?.error(`Error in event handler for ${eventType}: ${errorMessage}`);
       }
     }
   }

@@ -19,6 +19,21 @@ export enum LogLevel {
 }
 
 /**
+ * Type for log parameters
+ * This represents the valid types that can be passed to logging methods
+ */
+export type LogParam = 
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | Error
+  | object
+  | unknown[]
+  | (() => string);
+
+/**
  * Interface for logger systems
  */
 export interface ILogger extends ISystem {
@@ -27,42 +42,42 @@ export interface ILogger extends ISystem {
    * @param message Message to log
    * @param args Additional arguments
    */
-  trace(message: string, ...args: any[]): void;
+  trace(message: string, ...args: LogParam[]): void;
   
   /**
    * Log a message at the DEBUG level
    * @param message Message to log
    * @param args Additional arguments
    */
-  debug(message: string, ...args: any[]): void;
+  debug(message: string, ...args: LogParam[]): void;
   
   /**
    * Log a message at the INFO level
    * @param message Message to log
    * @param args Additional arguments
    */
-  info(message: string, ...args: any[]): void;
+  info(message: string, ...args: LogParam[]): void;
   
   /**
    * Log a message at the WARN level
    * @param message Message to log
    * @param args Additional arguments
    */
-  warn(message: string, ...args: any[]): void;
+  warn(message: string, ...args: LogParam[]): void;
   
   /**
    * Log a message at the ERROR level
    * @param message Message to log
    * @param args Additional arguments
    */
-  error(message: string, ...args: any[]): void;
+  error(message: string, ...args: LogParam[]): void;
   
   /**
    * Log a message at the FATAL level
    * @param message Message to log
    * @param args Additional arguments
    */
-  fatal(message: string, ...args: any[]): void;
+  fatal(message: string, ...args: LogParam[]): void;
   
   /**
    * Set the minimum log level

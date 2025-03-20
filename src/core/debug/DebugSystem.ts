@@ -73,7 +73,7 @@ export class DebugSystem implements IDebugSystem {
     }
   }
 
-  public destroy(): void {
+  public dispose(): void {
     this.performanceMonitor.stopMonitoring();
     this.debugGUI.hideGUI();
     
@@ -121,3 +121,4 @@ export class DebugSystem implements IDebugSystem {
     }
   }
 }
+

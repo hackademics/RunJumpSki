@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file tests/unit/core/ecs/components/FirstPersonCameraComponent.test.ts
  * @description Unit tests for FirstPersonCameraComponent
  */
@@ -52,7 +52,7 @@ describe('FirstPersonCameraComponent', () => {
 
     test('should initialize properly', () => {
         const initSpy = jest.spyOn(component, 'init');
-        component.init(entity);
+        component.initialize(entity);
         expect(initSpy).toHaveBeenCalledWith(entity);
     });
     
@@ -186,4 +186,5 @@ describe('FirstPersonCameraComponent', () => {
         transform.dispose();
     });
 });
+
 

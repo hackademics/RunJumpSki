@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file src/core/ecs/components/CameraComponent.ts
  * @description Implementation of the Camera Component that manages camera functionality
  */
@@ -151,8 +151,8 @@ export class CameraComponent extends Component implements ICameraComponent {
   /**
    * Initialize the component
    */
-  public override init(entity: IEntity): void {
-    super.init(entity);
+  public override initialize(entity: IEntity): void {
+    super.initialize(entity);
     
     // Try to get a transform component if no target transform is set
     if (!this.targetTransform && entity) {
@@ -333,4 +333,6 @@ export class CameraComponent extends Component implements ICameraComponent {
     this.scene.activeCamera = this.camera;
   }
 }
+
+
 

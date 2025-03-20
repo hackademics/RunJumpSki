@@ -12,6 +12,8 @@ import { IInputManager } from '../../core/input/IInputManager';
 import { ICameraComponent } from '../../core/ecs/components/ICameraComponent';
 import { ITransformComponent } from '../../core/ecs/components/ITransformComponent';
 import { ICollisionManager } from '../../core/physics/ICollisionManager';
+import { Logger } from '../../core/utils/Logger';
+import { ServiceLocator } from '../../core/base/ServiceLocator';
 
 // Extend IInputManager with game-specific methods that would be implemented
 interface IGameInputManager extends IInputManager {
@@ -99,23 +101,45 @@ export class MovementController {
   private yaw: number;
   private pitch: number;
   private movementDirection: BABYLON.Vector3;
-  private cameraDirection: BABYLON.Vector3;
-  private raycaster: BABYLON.Ray;
+  private cameraDirection: BABYLON.Vector3 = new BABYLON.Vector3(0, 0, 1);
+  private raycaster: BABYLON.Ray = new BABYLON.Ray(
+    new BABYLON.Vector3(0, 0, 0),
+    new BABYLON.Vector3(0, -1, 0),
+    5.0
+  );
+  private logger: Logger;
   
   // References to external systems
-  private inputManager: IGameInputManager | null;
-  private terrainCollider: ITerrainCollider | null;
-  private collisionManager: ICollisionManager | null;
-  private playerTransform: ITransformComponent | null;
-  private cameraComponent: ICameraComponent | null;
-  private scene: BABYLON.Scene | null;
-  private babylonCamera: BABYLON.TargetCamera | null;
+  private inputManager: IGameInputManager | null = null;
+  private terrainCollider: ITerrainCollider | null = null;
+  private collisionManager: ICollisionManager | null = null;
+  private playerTransform: ITransformComponent | null = null;
+  private cameraComponent: ICameraComponent | null = null;
+  private scene: BABYLON.Scene | null = null;
+  private babylonCamera: BABYLON.TargetCamera | null = null;
   
   /**
    * Creates a new movement controller
    * @param config Configuration options
    */
   constructor(config: Partial<MovementControllerConfig> = {}) {
+    // Initialize logger with default instance
+    this.logger = new Logger('MovementController');
+    
+    // Try to get the logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add context tag
+        this.logger.addTag('MovementController');
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to get logger from ServiceLocator: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    }
+    
+    this.logger.debug('MovementController created');
+    
     // Initialize configuration
     this.config = {
       ...DEFAULT_MOVEMENT_CONTROLLER_CONFIG,
@@ -142,6 +166,7 @@ export class MovementController {
     
     // Initialize physics state
     this.isGrounded = false;
+    this.movementDirection = new BABYLON.Vector3(0, 0, 1);
     this.currentSurfaceInfo = {
       exists: false,
       height: 0,
@@ -152,19 +177,7 @@ export class MovementController {
     };
     
     // Initialize direction vectors
-    this.movementDirection = new BABYLON.Vector3(0, 0, 1);
     this.cameraDirection = new BABYLON.Vector3(0, 0, 1);
-    
-    // Initialize system references
-    this.inputManager = null;
-    this.terrainCollider = null;
-    this.collisionManager = null;
-    this.playerTransform = null;
-    this.cameraComponent = null;
-    this.scene = null;
-    this.babylonCamera = null;
-    
-    // Initialize raycaster
     this.raycaster = new BABYLON.Ray(
       new BABYLON.Vector3(0, 0, 0),
       new BABYLON.Vector3(0, -1, 0),
@@ -202,7 +215,7 @@ export class MovementController {
     if (camera instanceof BABYLON.TargetCamera) {
       this.babylonCamera = camera;
     } else {
-      console.warn('Camera is not a TargetCamera, some functionality may be limited');
+      this.logger.warn('Camera is not a TargetCamera, some functionality may be limited');
     }
     
     // Initialize physics system
@@ -218,6 +231,8 @@ export class MovementController {
     this.yaw = 0;
     this.pitch = 0;
     this.updateCameraRotation();
+    
+    this.logger.debug('MovementController initialized successfully');
   }
   
   /**

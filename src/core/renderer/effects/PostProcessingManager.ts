@@ -15,6 +15,8 @@ import {
   DepthOfFieldEffectOptions,
   ColorCorrectionEffectOptions,
 } from './IPostProcessingManager';
+import { Logger } from '../../utils/Logger';
+import { ServiceLocator } from '../../base/ServiceLocator';
 
 /**
  * Default options for bloom effect
@@ -70,25 +72,69 @@ export class PostProcessingManager implements IPostProcessingManager {
   private camera: BABYLON.Camera | null = null;
   private postProcesses: Map<PostProcessEffectType, BABYLON.PostProcess> = new Map();
   private effectOptions: Map<PostProcessEffectType, PostProcessEffectOptions> = new Map();
+  private logger: Logger;
+  private defaultPipelineEnabled: boolean = true;
 
   /**
-   * Initialize the post-processing manager
-   * @param scene The scene to attach post-processing to
-   * @param camera The camera to attach post-processing to
+   * Creates a new PostProcessingManager
    */
-  public initialize(scene: BABYLON.Scene, camera: BABYLON.Camera): void {
-    this.scene = scene;
-    this.camera = camera;
+  constructor() {
+    // Initialize logger
+    this.logger = new Logger('PostProcessingManager');
+    
+    // Try to get logger from ServiceLocator if available
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add context tag
+        this.logger.addTag('PostProcessingManager');
+      }
+    } catch (e) {
+      // If service locator is not available, we'll use the default logger
+    }
+  }
 
-    // Set up default effect options
-    this.effectOptions.set(PostProcessEffectType.BLOOM, { ...DEFAULT_BLOOM_OPTIONS });
-    this.effectOptions.set(PostProcessEffectType.MOTION_BLUR, { ...DEFAULT_MOTION_BLUR_OPTIONS });
-    this.effectOptions.set(PostProcessEffectType.DEPTH_OF_FIELD, {
-      ...DEFAULT_DEPTH_OF_FIELD_OPTIONS,
+  /**
+   * Initialize the post processing manager
+   * @param scene The scene to apply effects to
+   */
+  public initialize(scene: BABYLON.Scene): void {
+    this.scene = scene;
+    
+    // Get active camera
+    if (scene.activeCamera) {
+      this.camera = scene.activeCamera;
+    }
+    
+    // Listen for active camera changes
+    scene.onActiveCameraChanged.add(() => {
+      if (scene.activeCamera) {
+        this.camera = scene.activeCamera;
+        
+        // Re-attach post processes to new active camera
+        this.reattachPostProcesses();
+      }
     });
-    this.effectOptions.set(PostProcessEffectType.COLOR_CORRECTION, {
-      ...DEFAULT_COLOR_CORRECTION_OPTIONS,
-    });
+  }
+
+  /**
+   * Reattach existing post processes to the current camera
+   */
+  private reattachPostProcesses(): void {
+    if (!this.camera) return;
+    
+    // Reattach all post processes to the new camera
+    for (const [type, postProcess] of this.postProcesses.entries()) {
+      // Detach from current camera and attach to the new one
+      postProcess.dispose();
+      
+      // Get options and recreate
+      const options = this.effectOptions.get(type);
+      if (options) {
+        this.addEffect(type, options);
+      }
+    }
   }
 
   /**
@@ -99,16 +145,17 @@ export class PostProcessingManager implements IPostProcessingManager {
    */
   public addEffect(type: PostProcessEffectType, options?: PostProcessEffectOptions): boolean {
     if (!this.scene || !this.camera) {
-      console.error('PostProcessingManager: Cannot add effect, manager not initialized');
+      this.logger.error('PostProcessingManager: Cannot add effect, manager not initialized');
       return false;
     }
 
-    // If effect already exists, update it
-    if (this.postProcesses.has(type)) {
-      return this.updateEffectOptions(type, options || {});
-    }
-
     try {
+      // Check if effect already exists
+      if (this.postProcesses.has(type)) {
+        return this.updateEffectOptions(type, options || {});
+      }
+
+      // Create effect based on type
       let postProcess: BABYLON.PostProcess | null = null;
 
       switch (type) {
@@ -137,24 +184,21 @@ export class PostProcessingManager implements IPostProcessingManager {
           postProcess = this.createAntiAliasingEffect(options);
           break;
         default:
-          console.error(`PostProcessingManager: Unknown effect type ${type}`);
+          this.logger.error(`PostProcessingManager: Unknown effect type ${type}`);
           return false;
       }
 
       if (postProcess) {
         this.postProcesses.set(type, postProcess);
-
-        // Store options
-        const defaultOptions = this.getDefaultOptionsForType(type);
-        this.effectOptions.set(type, { ...defaultOptions, ...(options || {}) });
-
+        this.effectOptions.set(type, options || this.getDefaultOptionsForType(type));
         return true;
       }
-    } catch (err) {
-      console.error(`PostProcessingManager: Failed to add effect ${type}`, err);
-    }
 
-    return false;
+      return false;
+    } catch (err) {
+      this.logger.error(`PostProcessingManager: Failed to add effect ${type}`, err instanceof Error ? err : new Error(String(err)));
+      return false;
+    }
   }
 
   /**
@@ -272,50 +316,54 @@ export class PostProcessingManager implements IPostProcessingManager {
   /**
    * Configure bloom effect
    * @param options Bloom effect options
-   * @returns True if effect was configured successfully
+   * @returns True if configuration was successful
    */
   public configureBloom(options: BloomEffectOptions): boolean {
-    const bloomEffect = this.postProcesses.get(
-      PostProcessEffectType.BLOOM
-    ) as unknown as BABYLON.BloomEffect;
-    if (!bloomEffect) {
-      // If effect doesn't exist yet, add it
-      if (!this.scene || !this.camera) return false;
-      return this.addEffect(PostProcessEffectType.BLOOM, options);
+    if (!this.scene || !this.camera) {
+      return false;
     }
 
     try {
-      // Update bloom effect settings
-      if ('updateEffect' in bloomEffect) {
-        // Access private properties using type assertion
-        const bloomOptions = { ...DEFAULT_BLOOM_OPTIONS, ...options };
-
-        // Update options on the underlying effect
-        // Note: Actual property names might differ based on BabylonJS implementation
-        const bloomEffectAny = bloomEffect as unknown as Record<string, any>;
-        if (bloomEffectAny._bloomEffectKernelSize !== undefined) {
-          bloomEffectAny._bloomEffectKernelSize =
-            bloomOptions.kernelSize || DEFAULT_BLOOM_OPTIONS.kernelSize;
+      // Get existing bloom effect or create a new one
+      let bloomEffect = this.getEffect(PostProcessEffectType.BLOOM);
+      if (!bloomEffect) {
+        bloomEffect = this.createBloomEffect(options);
+        if (bloomEffect) {
+          this.postProcesses.set(PostProcessEffectType.BLOOM, bloomEffect);
         }
-        if (bloomEffectAny._bloomEffectIntensity !== undefined) {
-          bloomEffectAny._bloomEffectIntensity =
-            bloomOptions.intensity || DEFAULT_BLOOM_OPTIONS.intensity;
-        }
-        if (bloomEffectAny._bloomEffectThreshold !== undefined) {
-          bloomEffectAny._bloomEffectThreshold =
-            bloomOptions.threshold || DEFAULT_BLOOM_OPTIONS.threshold;
-        }
+      }
 
-        (bloomEffect as unknown as { isEnabled: boolean }).isEnabled =
-          bloomOptions.enabled !== false;
+      if (bloomEffect) {
+        // Apply options to the bloom effect
+        const mergedOptions = {
+          ...DEFAULT_BLOOM_OPTIONS,
+          ...options
+        };
 
-        // Update stored options
-        this.effectOptions.set(PostProcessEffectType.BLOOM, bloomOptions);
+        // Cast to correct types for Babylon.js
+        const bloom = bloomEffect as any;
+        if (bloom.kernel !== undefined) {
+          bloom.kernel = mergedOptions.kernelSize;
+        }
+        if (bloom.threshold !== undefined) {
+          bloom.threshold = mergedOptions.threshold;
+        }
+        if (bloom.weight !== undefined) {
+          bloom.weight = mergedOptions.intensity;
+        }
+        
+        // Enable/disable based on options
+        bloomEffect.enabled = !!mergedOptions.enabled;
+        
+        // Store the updated options
+        this.effectOptions.set(PostProcessEffectType.BLOOM, mergedOptions);
+        
         return true;
       }
+      
       return false;
     } catch (err) {
-      console.error('PostProcessingManager: Failed to configure bloom effect', err);
+      this.logger.error('Failed to configure bloom effect', err instanceof Error ? err : new Error(String(err)));
       return false;
     }
   }
@@ -355,7 +403,7 @@ export class PostProcessingManager implements IPostProcessingManager {
       this.effectOptions.set(PostProcessEffectType.MOTION_BLUR, motionBlurOptions);
       return true;
     } catch (err) {
-      console.error('PostProcessingManager: Failed to configure motion blur effect', err);
+      this.logger.error('PostProcessingManager: Failed to configure motion blur effect', err instanceof Error ? err : new Error(String(err)));
       return false;
     }
   }
@@ -400,7 +448,7 @@ export class PostProcessingManager implements IPostProcessingManager {
       this.effectOptions.set(PostProcessEffectType.DEPTH_OF_FIELD, dofOptions);
       return true;
     } catch (err) {
-      console.error('PostProcessingManager: Failed to configure depth of field effect', err);
+      this.logger.error('PostProcessingManager: Failed to configure depth of field effect', err instanceof Error ? err : new Error(String(err)));
       return false;
     }
   }
@@ -440,7 +488,7 @@ export class PostProcessingManager implements IPostProcessingManager {
       this.effectOptions.set(PostProcessEffectType.COLOR_CORRECTION, ccOptions);
       return true;
     } catch (err) {
-      console.error('PostProcessingManager: Failed to configure color correction effect', err);
+      this.logger.error('PostProcessingManager: Failed to configure color correction effect', err instanceof Error ? err : new Error(String(err)));
       return false;
     }
   }
@@ -762,5 +810,158 @@ export class PostProcessingManager implements IPostProcessingManager {
           priority: 1000,
         };
     }
+  }
+
+  /**
+   * Create the default post-processing pipeline
+   */
+  public createDefaultPipeline(): void {
+    if (!this.scene || !this.camera) {
+      this.logger.error('Cannot create default pipeline, manager not initialized');
+      return;
+    }
+
+    // Create default effects
+    this.addEffect(PostProcessEffectType.BLOOM, DEFAULT_BLOOM_OPTIONS);
+    this.addEffect(PostProcessEffectType.COLOR_CORRECTION, DEFAULT_COLOR_CORRECTION_OPTIONS);
+  }
+
+  /**
+   * Enable or disable bloom effect
+   * @param enabled Whether bloom should be enabled
+   * @returns True if operation was successful
+   */
+  public enableBloom(enabled: boolean): boolean {
+    const bloomEffect = this.getEffect(PostProcessEffectType.BLOOM);
+    if (bloomEffect) {
+      bloomEffect.enabled = enabled;
+      return true;
+    } else if (enabled) {
+      // Create and add the bloom effect if it doesn't exist
+      return this.addEffect(PostProcessEffectType.BLOOM, {
+        ...DEFAULT_BLOOM_OPTIONS,
+        enabled: true
+      });
+    }
+    return false;
+  }
+
+  /**
+   * Enable or disable depth of field effect
+   * @param enabled Whether depth of field should be enabled
+   * @returns True if operation was successful
+   */
+  public enableDepthOfField(enabled: boolean): boolean {
+    const dofEffect = this.getEffect(PostProcessEffectType.DEPTH_OF_FIELD);
+    if (dofEffect) {
+      dofEffect.enabled = enabled;
+      return true;
+    } else if (enabled) {
+      // Create and add the depth of field effect if it doesn't exist
+      return this.addEffect(PostProcessEffectType.DEPTH_OF_FIELD, {
+        ...DEFAULT_DEPTH_OF_FIELD_OPTIONS,
+        enabled: true
+      });
+    }
+    return false;
+  }
+
+  /**
+   * Enable or disable ambient occlusion effect
+   * @param enabled Whether ambient occlusion should be enabled
+   * @returns True if operation was successful
+   */
+  public enableAmbientOcclusion(enabled: boolean): boolean {
+    const aoEffect = this.getEffect(PostProcessEffectType.AMBIENT_OCCLUSION);
+    if (aoEffect) {
+      aoEffect.enabled = enabled;
+      return true;
+    } else if (enabled) {
+      // Create and add the ambient occlusion effect if it doesn't exist
+      return this.addEffect(PostProcessEffectType.AMBIENT_OCCLUSION, {
+        enabled: true,
+        priority: 500
+      });
+    }
+    return false;
+  }
+
+  /**
+   * Set bloom intensity
+   * @param intensity Bloom intensity value
+   * @returns True if operation was successful
+   */
+  public setBloomIntensity(intensity: number): boolean {
+    // Get the current bloom options
+    const bloomOptions = this.effectOptions.get(PostProcessEffectType.BLOOM) as BloomEffectOptions;
+    if (bloomOptions) {
+      // Update the options
+      bloomOptions.intensity = intensity;
+      // Apply the updated options
+      return this.configureBloom(bloomOptions);
+    }
+    return false;
+  }
+
+  /**
+   * Set depth of field focal length
+   * @param focalLength Focal length in millimeters
+   * @returns True if operation was successful
+   */
+  public setDepthOfFieldFocalLength(focalLength: number): boolean {
+    // Get the current depth of field options
+    const dofOptions = this.effectOptions.get(PostProcessEffectType.DEPTH_OF_FIELD) as DepthOfFieldEffectOptions;
+    if (dofOptions) {
+      // Update the options
+      dofOptions.focalLength = focalLength;
+      // Apply the updated options
+      return this.configureDepthOfField(dofOptions);
+    }
+    return false;
+  }
+
+  /**
+   * Set ambient occlusion radius
+   * @param radius Radius value for ambient occlusion
+   * @returns True if operation was successful
+   */
+  public setAmbientOcclusionRadius(radius: number): boolean {
+    // Get the current ambient occlusion options
+    const aoOptions = this.effectOptions.get(PostProcessEffectType.AMBIENT_OCCLUSION);
+    if (aoOptions) {
+      // Update the radius property
+      (aoOptions as any).radius = radius;
+      // Apply the updated options
+      return this.updateEffectOptions(PostProcessEffectType.AMBIENT_OCCLUSION, aoOptions);
+    }
+    return false;
+  }
+
+  /**
+   * Enable or disable the entire post-processing pipeline
+   * @param enabled Whether the pipeline should be enabled
+   * @returns True if operation was successful
+   */
+  public setPipelineEnabled(enabled: boolean): boolean {
+    if (enabled === this.defaultPipelineEnabled) {
+      return true; // Already in the desired state
+    }
+
+    this.defaultPipelineEnabled = enabled;
+
+    // Enable/disable all effects
+    let success = true;
+    for (const [type, postProcess] of this.postProcesses.entries()) {
+      // Get the original enabled state from options
+      const options = this.effectOptions.get(type);
+      const shouldBeEnabled = enabled && (options?.enabled !== false);
+      
+      // Set the enabled state of the post process
+      if (postProcess.enabled !== shouldBeEnabled) {
+        postProcess.enabled = shouldBeEnabled;
+      }
+    }
+
+    return success;
   }
 }

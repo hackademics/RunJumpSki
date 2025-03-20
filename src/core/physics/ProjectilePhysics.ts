@@ -7,6 +7,8 @@ import * as BABYLON from 'babylonjs';
 import { IProjectilePhysics, ProjectileConfig, ProjectileState, ProjectileImpactCallback, DEFAULT_PROJECTILE_CONFIG } from './IProjectilePhysics';
 import { IPhysicsSystem } from './IPhysicsSystem';
 import { ICollisionSystem, CollisionInfo } from './ICollisionSystem';
+import { Logger } from '../utils/Logger';
+import { ServiceLocator } from '../base/ServiceLocator';
 
 /**
  * Internal projectile data structure
@@ -31,6 +33,31 @@ export class ProjectilePhysics implements IProjectilePhysics {
   private projectiles: Map<string, ProjectileData> = new Map();
   private nextId: number = 0;
   private scene: BABYLON.Scene | null = null;
+  private logger: Logger;
+  
+  /**
+   * Creates a new ProjectilePhysics instance
+   */
+  constructor() {
+    this.projectiles = new Map();
+    
+    // Initialize logger with default instance
+    this.logger = new Logger('ProjectilePhysics');
+    
+    // Try to get the logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add context tag
+        this.logger.addTag('ProjectilePhysics');
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to get logger from ServiceLocator: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    }
+    
+    this.logger.debug('ProjectilePhysics system created');
+  }
   
   /**
    * Initializes the projectile physics system
@@ -48,7 +75,9 @@ export class ProjectilePhysics implements IProjectilePhysics {
     }
     
     if (!this.scene) {
-      console.error('ProjectilePhysics: Failed to get scene from physics system');
+      this.logger.error('Failed to get scene from physics system');
+    } else {
+      this.logger.debug('Projectile physics system initialized successfully');
     }
   }
   
@@ -132,7 +161,8 @@ export class ProjectilePhysics implements IProjectilePhysics {
     onImpact?: ProjectileImpactCallback
   ): string {
     if (!this.scene || !this.physicsSystem) {
-      throw new Error('ProjectilePhysics: System not initialized');
+      this.logger.error('Cannot create projectile: System not initialized');
+      throw new Error('ProjectilePhysics not initialized');
     }
     
     // Create a unique ID for this projectile
@@ -215,6 +245,8 @@ export class ProjectilePhysics implements IProjectilePhysics {
     
     this.projectiles.set(id, projectileData);
     
+    this.logger.debug(`Created projectile ${id} at position (${start.x.toFixed(2)}, ${start.y.toFixed(2)}, ${start.z.toFixed(2)}) with velocity ${fullConfig.initialVelocity}`);
+    
     return id;
   }
   
@@ -225,7 +257,10 @@ export class ProjectilePhysics implements IProjectilePhysics {
    */
   public destroyProjectile(id: string, explode: boolean = false): void {
     const projectile = this.projectiles.get(id);
-    if (!projectile) return;
+    if (!projectile) {
+      this.logger.warn(`Attempted to destroy non-existent projectile with ID: ${id}`);
+      return;
+    }
     
     // Mark as inactive
     projectile.state.isActive = false;
@@ -236,6 +271,8 @@ export class ProjectilePhysics implements IProjectilePhysics {
       
       // Apply explosion force if radius and force are defined
       if (projectile.config.explosionRadius && projectile.config.explosionForce) {
+        this.logger.debug(`Projectile ${id} exploding at (${projectile.state.position.x.toFixed(2)}, ${projectile.state.position.y.toFixed(2)}, ${projectile.state.position.z.toFixed(2)}) with radius ${projectile.config.explosionRadius} and force ${projectile.config.explosionForce}`);
+        
         this.applyExplosionForce(
           projectile.state.position,
           projectile.config.explosionRadius,
@@ -259,6 +296,8 @@ export class ProjectilePhysics implements IProjectilePhysics {
     
     // Remove from map
     this.projectiles.delete(id);
+    
+    this.logger.debug(`Destroyed projectile ${id}`);
   }
   
   /**
@@ -422,17 +461,22 @@ export class ProjectilePhysics implements IProjectilePhysics {
   }
   
   /**
-   * Cleans up resources
+   * Performs cleanup of the system
    */
-  public destroy(): void {
+  public dispose(): void {
+    this.logger.debug(`Disposing projectile physics system with ${this.projectiles.size} active projectiles`);
+    
     // Destroy all projectiles
     for (const id of this.projectiles.keys()) {
       this.destroyProjectile(id, false);
     }
     
-    this.projectiles.clear();
+    // Clear references
     this.physicsSystem = null;
     this.collisionSystem = null;
     this.scene = null;
+    this.projectiles.clear();
+    
+    this.logger.debug('Projectile physics system disposed');
   }
 } 

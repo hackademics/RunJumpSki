@@ -31,7 +31,7 @@ describe('SpinfusorProjectile', () => {
     destroyProjectile: jest.fn(),
     getProjectileState: jest.fn(),
     applyExplosionForce: jest.fn(),
-    destroy: jest.fn()
+    dispose: jest.fn()
   };
   
   // Mock mesh

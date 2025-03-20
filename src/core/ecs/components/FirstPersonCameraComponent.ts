@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file src/core/ecs/components/FirstPersonCameraComponent.ts
  * @description Implementation of the FirstPersonCameraComponent for first-person camera controls
  */
@@ -135,8 +135,8 @@ export class FirstPersonCameraComponent extends CameraComponent implements IFirs
   /**
    * Initialize the component
    */
-  public override init(entity: IEntity): void {
-    super.init(entity);
+  public override initialize(entity: IEntity): void {
+    super.initialize(entity);
     
     // Ensure proper setup for first-person camera
     this.setupFirstPersonCamera();
@@ -323,4 +323,6 @@ export class FirstPersonCameraComponent extends CameraComponent implements IFirs
     }
   }
 }
+
+
 

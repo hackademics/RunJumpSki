@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file tests/unit/core/ecs/components/CameraComponent.test.ts
  * @description Unit tests for CameraComponent
  */
@@ -53,7 +53,7 @@ describe('CameraComponent', () => {
     test('should initialize properly', () => {
         // Spy on the component's init method to check if it's called with the entity
         const initSpy = jest.spyOn(component, 'init');
-        component.init(entity);
+        component.initialize(entity);
         expect(initSpy).toHaveBeenCalledWith(entity);
     });
     
@@ -119,7 +119,7 @@ describe('CameraComponent', () => {
         expect(component.getTargetTransform()).toBeNull();
         
         // Init should look for transform component
-        component.init(entity);
+        component.initialize(entity);
         expect(component.getTargetTransform()).toBe(transform);
     });
     
@@ -171,4 +171,5 @@ describe('CameraComponent', () => {
         transform.dispose();
     });
 });
+
 

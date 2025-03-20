@@ -12,6 +12,8 @@ import { SurfaceType } from '../game/renderer/particles/SkiTrailParticleEffect';
 import { PerformanceBenchmark, BenchmarkScenario, BenchmarkResult } from '../core/debug/PerformanceBenchmark';
 import { Entity } from '../core/ecs/Entity';
 import { TransformComponent } from '../core/ecs/components/TransformComponent';
+import { Logger } from '../core/utils/Logger';
+import { ISceneManager, SceneCreateOptions, SceneTransitionOptions } from '../core/renderer/ISceneManager';
 
 /**
  * Performance benchmark configuration
@@ -43,6 +45,37 @@ const DEFAULT_BENCHMARK_CONFIG: PerformanceBenchmarkConfig = {
 };
 
 /**
+ * Extended scene manager interface for our benchmark with additional helpers
+ */
+interface IBenchmarkSceneManager extends ISceneManager {
+  // Additional helpers specific to the benchmark
+  getCameraPosition(): BABYLON.Vector3;
+  getCameraDirection(): BABYLON.Vector3;
+  getCanvas(): HTMLCanvasElement;
+}
+
+/**
+ * Context data for weapon firing scenario
+ */
+interface WeaponFiringScenarioContext {
+  targetSphere?: BABYLON.Mesh;
+}
+
+/**
+ * Context data for intensive weapon scenario
+ */
+interface IntensiveWeaponScenarioContext {
+  targets: BABYLON.Mesh[];
+}
+
+/**
+ * Context data for particle effects scenario
+ */
+interface ParticleEffectsScenarioContext {
+  emitters: BABYLON.Mesh[];
+}
+
+/**
  * Performance benchmark class for testing weapons and particle effects
  */
 export class GameplayBenchmark {
@@ -54,7 +87,7 @@ export class GameplayBenchmark {
   private serviceLocator: ServiceLocator;
   private weaponSystem: WeaponSystem;
   private particleEffectsSystem: ParticleEffectsSystem;
-  private performanceBenchmark: PerformanceBenchmark;
+  public performanceBenchmark: PerformanceBenchmark;
   
   private playerEntity: Entity;
   
@@ -62,12 +95,30 @@ export class GameplayBenchmark {
   private benchmarkResults: BenchmarkResult[] = [];
   private isRunning: boolean = false;
   
+  // Logger
+  private logger: Logger;
+  
   /**
    * Create a new gameplay benchmark
    * @param config Benchmark configuration
    */
   constructor(config: Partial<PerformanceBenchmarkConfig> = {}) {
     this.config = { ...DEFAULT_BENCHMARK_CONFIG, ...config };
+    
+    // Initialize logger with default instance
+    this.logger = new Logger('GameplayBenchmark');
+    
+    // Try to get the logger from ServiceLocator
+    try {
+      const serviceLocator = ServiceLocator.getInstance();
+      if (serviceLocator.has('logger')) {
+        this.logger = serviceLocator.get<Logger>('logger');
+        // Add context tag
+        this.logger.addTag('GameplayBenchmark');
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to get logger from ServiceLocator: ${e instanceof Error ? e.message : 'Unknown error'}`);
+    }
     
     // Get canvas
     const canvasElement = document.getElementById(this.config.canvasId);
@@ -102,15 +153,36 @@ export class GameplayBenchmark {
     this.playerEntity = new Entity('player');
     this.playerEntity.addComponent(new TransformComponent());
     
-    // Create performance benchmark
-    this.performanceBenchmark = new PerformanceBenchmark({
-      scene: this.scene,
-      engine: this.engine,
-      showUI: this.config.showUI
-    });
+    // Create mock scene manager for dependency injection
+    const mockSceneManager: IBenchmarkSceneManager = {
+      initialize: (engine: BABYLON.Engine) => {},
+      getActiveScene: () => this.scene,
+      createScene: (options: SceneCreateOptions) => this.scene,
+      getScene: (nameOrId: string) => this.scene,
+      getAllScenes: () => [this.scene],
+      setActiveScene: async (nameOrId: string, transitionOptions?: SceneTransitionOptions) => {},
+      transitionBetweenScenes: async (from: BABYLON.Scene, to: BABYLON.Scene, options: SceneTransitionOptions) => {},
+      disposeScene: (nameOrId?: string) => {},
+      disposeAll: () => {},
+      
+      // Additional convenience methods for our benchmark
+      getCameraPosition: () => this.camera.position,
+      getCameraDirection: () => this.camera.getDirection(BABYLON.Vector3.Forward()),
+      getCanvas: () => this.canvas
+    };
     
     // Register service locator for scene manager
-    this.serviceLocator.register('scene', this.scene);
+    this.serviceLocator.register('scene', this.scene as any);
+    this.serviceLocator.register('sceneManager', mockSceneManager);
+    
+    // Create performance benchmark
+    this.performanceBenchmark = new PerformanceBenchmark({
+      scene: this.scene as any,
+      engine: this.engine as any,
+      showUI: this.config.showUI,
+      minDuration: this.config.minDuration,
+      maxDuration: this.config.maxDuration
+    });
     
     // Initialize systems
     this.weaponSystem = new WeaponSystem({
@@ -151,12 +223,12 @@ export class GameplayBenchmark {
    */
   private defineBenchmarkScenarios(): void {
     // Basic weapon firing scenario
-    this.performanceBenchmark.defineScenario({
+    this.performanceBenchmark.defineScenario<WeaponFiringScenarioContext>({
       name: 'weapon_firing_basic',
       displayName: 'Basic Weapon Firing',
       description: 'Tests performance with periodic firing of weapons',
       setup: async () => {
-        await this.weaponSystem.init();
+        await this.weaponSystem.initialize();
         
         // Setup scene for weapon firing
         const targetSphere = BABYLON.MeshBuilder.CreateSphere('target', { diameter: 2 }, this.scene);
@@ -200,24 +272,24 @@ export class GameplayBenchmark {
         // Cleanup
       },
       metrics: {
-        'Shots Fired': (result) => result.progress,
-        'Avg FPS': (result) => result.avgFps,
-        'Min FPS': (result) => result.minFps,
-        'Max Memory (MB)': (result) => Math.round(result.maxMemory / (1024 * 1024))
+        'Shots Fired': (result) => result.progress || 0,
+        'Avg FPS': (result) => result.avgFps || 0,
+        'Min FPS': (result) => result.minFps || 0,
+        'Max Memory (MB)': (result) => Math.round((result.maxMemory || 0) / (1024 * 1024))
       }
     });
     
     // Intensive weapon firing scenario
-    this.performanceBenchmark.defineScenario({
+    this.performanceBenchmark.defineScenario<IntensiveWeaponScenarioContext>({
       name: 'weapon_firing_intensive',
       displayName: 'Intensive Weapon Firing',
       description: 'Tests performance with rapid-fire weapons and explosions',
       setup: async () => {
-        await this.weaponSystem.init();
-        await this.particleEffectsSystem.init();
+        await this.weaponSystem.initialize();
+        await this.particleEffectsSystem.initialize();
         
         // Create targets
-        const targets = [];
+        const targets: BABYLON.Mesh[] = [];
         for (let i = 0; i < 5; i++) {
           const target = BABYLON.MeshBuilder.CreateBox('target' + i, { size: 1 }, this.scene);
           target.position = new BABYLON.Vector3(
@@ -233,284 +305,270 @@ export class GameplayBenchmark {
       run: async (context, onProgress) => {
         const { targets } = context;
         let shotsFired = 0;
-        let explosionsCreated = 0;
+        let interval: NodeJS.Timeout;
         
-        // Fast firing
-        const firingInterval = setInterval(() => {
-          // Pick a random target
+        // Fire weapons rapidly
+        interval = setInterval(() => {
+          // Choose a random target
           const targetIndex = Math.floor(Math.random() * targets.length);
           const target = targets[targetIndex];
           
-          // Direction to target
+          // Calculate direction to target
           const direction = target.position.subtract(this.camera.position).normalize();
           
-          // Fire weapon
-          this.weaponSystem.fireSpinfusor(
-            this.camera.position.clone(),
-            direction
-          );
+          // Add some randomization
+          direction.x += (Math.random() - 0.5) * 0.1;
+          direction.y += (Math.random() - 0.5) * 0.1;
+          direction.z += (Math.random() - 0.5) * 0.1;
+          direction.normalize();
+          
+          // Alternate between weapons
+          if (shotsFired % 2 === 0) {
+            this.weaponSystem.fireSpinfusor(this.camera.position.clone(), direction);
+          } else {
+            this.weaponSystem.fireGrenade(this.camera.position.clone(), direction, 1.0);
+          }
           
           shotsFired++;
           
-          // Create explosion at target position
-          setTimeout(() => {
-            this.particleEffectsSystem.createExplosion(
-              target.position.clone(),
-              2.0 + Math.random() * 3.0, // Random radius
-              0.8 + Math.random() * 0.4   // Random intensity
+          // Create explosions occasionally
+          if (shotsFired % 5 === 0) {
+            const randomPosition = new BABYLON.Vector3(
+              (Math.random() - 0.5) * 20,
+              1 + Math.random() * 3,
+              10 + Math.random() * 10
             );
-            explosionsCreated++;
-          }, 500); // Explosion after 500ms
-          
-          // Update progress as total effects
-          onProgress(shotsFired + explosionsCreated);
-        }, 200); // Very rapid firing
-        
-        // Occasionally throw grenades too
-        const grenadeInterval = setInterval(() => {
-          // Random direction
-          const direction = new BABYLON.Vector3(
-            (Math.random() - 0.5) * 0.5,
-            0.2 + Math.random() * 0.3,
-            0.8 + Math.random() * 0.2
-          ).normalize();
-          
-          // Fire grenade
-          this.weaponSystem.fireGrenade(
-            this.camera.position.clone(),
-            direction,
-            0.7 + Math.random() * 0.6 // Random power
-          );
-          
-          shotsFired++;
+            
+            this.particleEffectsSystem.createExplosion(
+              randomPosition,
+              2 + Math.random() * 3,
+              0.5 + Math.random() * 0.5
+            );
+          }
           
           // Update progress
-          onProgress(shotsFired + explosionsCreated);
-        }, 1000); // Every second
-        
-        return () => {
-          clearInterval(firingInterval);
-          clearInterval(grenadeInterval);
-          
-          // Dispose targets
-          targets.forEach(target => target.dispose());
-        };
-      },
-      teardown: async () => {
-        // Cleanup
-      },
-      metrics: {
-        'Effects Created': (result) => result.progress,
-        'Avg FPS': (result) => result.avgFps,
-        'Min FPS': (result) => result.minFps,
-        'Max Memory (MB)': (result) => Math.round(result.maxMemory / (1024 * 1024))
-      }
-    });
-    
-    // Combined jetpack and ski trail scenario
-    this.performanceBenchmark.defineScenario({
-      name: 'player_movement_effects',
-      displayName: 'Player Movement Effects',
-      description: 'Tests performance with combined jetpack and ski trail effects',
-      setup: async () => {
-        await this.particleEffectsSystem.init();
-        
-        // Initialize effects for player
-        this.particleEffectsSystem.initializeJetpackForEntity(this.playerEntity);
-        this.particleEffectsSystem.initializeSkiTrailForEntity(this.playerEntity);
-        
-        // Create a movement path
-        const path = [];
-        for (let i = 0; i < 100; i++) {
-          // Create a winding path
-          const x = Math.sin(i * 0.1) * 20;
-          const z = i * -1.0;
-          const y = 1 + Math.sin(i * 0.2) * 3;
-          path.push(new BABYLON.Vector3(x, y, z));
-        }
-        
-        return { path, pathIndex: 0 };
-      },
-      run: async (context, onProgress) => {
-        const { path } = context;
-        let pathIndex = 0;
-        let frame = 0;
-        
-        // Animate player along path
-        const interval = setInterval(() => {
-          // Move to next path point
-          pathIndex = (pathIndex + 1) % path.length;
-          const position = path[pathIndex];
-          
-          // Calculate direction
-          const nextPoint = path[(pathIndex + 1) % path.length];
-          const direction = nextPoint.subtract(position).normalize();
-          
-          // Update player position
-          const transformComponent = this.playerEntity.getComponent<TransformComponent>('transform');
-          if (transformComponent) {
-            transformComponent.setPosition(position);
-          }
-          
-          // Calculate speed based on height (higher = faster for skiing down)
-          const speed = 10 + (5 - position.y) * 2;
-          
-          // Use jetpack when going up, ski when going down
-          const isGoingUp = nextPoint.y > position.y;
-          
-          if (isGoingUp) {
-            // Use jetpack when going up
-            this.particleEffectsSystem.setJetpackState(JetpackEffectState.HIGH);
-            this.particleEffectsSystem.updateJetpackEffect(0.8, true);
-            
-            // Less ski effect when using jetpack
-            this.particleEffectsSystem.updateSkiTrail(
-              direction,
-              speed * 0.3,
-              true, 
-              SurfaceType.SNOW,
-              0.1
-            );
-          } else {
-            // Ski when going down
-            this.particleEffectsSystem.setJetpackState(JetpackEffectState.OFF);
-            
-            // Determine surface type based on position
-            let surfaceType = SurfaceType.SNOW;
-            const xPos = Math.abs(position.x);
-            if (xPos > 15) {
-              surfaceType = SurfaceType.ICE;
-            } else if (xPos > 10) {
-              surfaceType = SurfaceType.DIRT;
-            } else if (xPos > 5) {
-              surfaceType = SurfaceType.GRASS;
-            }
-            
-            // Full ski effect
-            this.particleEffectsSystem.updateSkiTrail(
-              direction,
-              speed,
-              true,
-              surfaceType,
-              0.05
-            );
-          }
-          
-          // Update frame counter and progress
-          frame++;
-          onProgress(frame);
-          
-          // Update camera to follow player
-          this.camera.position = position.subtract(direction.scale(10)).add(new BABYLON.Vector3(0, 3, 0));
-          this.camera.setTarget(position);
-          
-        }, 50); // Update at 20 times per second
+          onProgress(shotsFired);
+        }, 200); // Fire every 200ms
         
         return () => {
           clearInterval(interval);
-          
-          // Turn off effects
-          this.particleEffectsSystem.setJetpackState(JetpackEffectState.OFF);
-          this.particleEffectsSystem.updateSkiTrail(
-            new BABYLON.Vector3(0, 0, 1),
-            0,
-            false,
-            SurfaceType.SNOW,
-            0
-          );
         };
       },
       teardown: async () => {
-        // Reset camera
-        this.camera.position = new BABYLON.Vector3(0, 5, -10);
-        this.camera.setTarget(BABYLON.Vector3.Zero());
+        // Dispose targets
+        await this.disposeIntensiveWeaponScenarioTargets();
       },
       metrics: {
-        'Frames': (result) => result.progress,
-        'Avg FPS': (result) => result.avgFps,
-        'Min FPS': (result) => result.minFps,
-        'Max Memory (MB)': (result) => Math.round(result.maxMemory / (1024 * 1024))
+        'Shots Fired': (result) => result.progress || 0,
+        'Avg FPS': (result) => result.avgFps || 0,
+        'Min FPS': (result) => result.minFps || 0,
+        'Max Memory (MB)': (result) => Math.round((result.maxMemory || 0) / (1024 * 1024))
+      }
+    });
+    
+    // Particle effects stress test scenario
+    this.performanceBenchmark.defineScenario<ParticleEffectsScenarioContext>({
+      name: 'particle_effects_stress',
+      displayName: 'Particle Effects Stress Test',
+      description: 'Tests performance with many simultaneous particle effects',
+      setup: async () => {
+        await this.particleEffectsSystem.initialize();
+        
+        // Create emitter meshes
+        const emitters: BABYLON.Mesh[] = [];
+        for (let i = 0; i < 10; i++) {
+          const emitter = BABYLON.MeshBuilder.CreateSphere('emitter' + i, { diameter: 0.2 }, this.scene);
+          emitter.position = new BABYLON.Vector3(
+            (i - 5) * 2,
+            1 + Math.sin(i) * 2,
+            10 + Math.cos(i) * 5
+          );
+          emitter.isVisible = false;
+          emitters.push(emitter);
+        }
+        
+        this.particleEffectsSystem.initializeJetpackForEntity(this.playerEntity);
+        this.particleEffectsSystem.initializeSkiTrailForEntity(this.playerEntity);
+        
+        return { emitters };
+      },
+      run: async (context, onProgress) => {
+        const { emitters } = context;
+        let effectsCreated = 0;
+        let interval: NodeJS.Timeout;
+        
+        // Create particle effects periodically
+        interval = setInterval(() => {
+          // Cycle through different effect types
+          const effectType = effectsCreated % 3;
+          
+          if (effectType === 0) {
+            // Create explosions
+            const emitterIndex = Math.floor(Math.random() * emitters.length);
+            const emitter = emitters[emitterIndex];
+            
+            this.particleEffectsSystem.createExplosion(
+              emitter.position,
+              1 + Math.random() * 2,
+              0.5 + Math.random() * 0.5
+            );
+          } else if (effectType === 1) {
+            // Update jetpack
+            this.particleEffectsSystem.setJetpackState(
+              Math.random() > 0.3 ? JetpackEffectState.MEDIUM : JetpackEffectState.IDLE
+            );
+            
+            this.particleEffectsSystem.updateJetpackEffect(
+              0.5 + Math.random() * 0.5,
+              true
+            );
+          } else if (effectType === 2) {
+            // Update ski trail
+            this.particleEffectsSystem.updateSkiTrail(
+              new BABYLON.Vector3(Math.random() - 0.5, 0, 1).normalize(),
+              10 + Math.random() * 20,
+              true,
+              Math.random() > 0.5 ? SurfaceType.SNOW : SurfaceType.DIRT,
+              0.1 + Math.random() * 0.2
+            );
+          }
+          
+          effectsCreated++;
+          
+          // Update progress
+          onProgress(effectsCreated);
+        }, 100); // Create effects every 100ms
+        
+        return () => {
+          clearInterval(interval);
+        };
+      },
+      teardown: async () => {
+        // Dispose emitters
+        await this.disposeParticleEffectsScenarioEmitters();
+      },
+      metrics: {
+        'Effects Created': (result) => result.progress || 0,
+        'Avg FPS': (result) => result.avgFps || 0,
+        'Min FPS': (result) => result.minFps || 0,
+        'Max Memory (MB)': (result) => Math.round((result.maxMemory || 0) / (1024 * 1024))
       }
     });
   }
   
   /**
-   * Run all benchmarks in sequence
+   * Helper method to dispose intensive weapon scenario targets
+   */
+  private async disposeIntensiveWeaponScenarioTargets(): Promise<void> {
+    try {
+      const scenario = this.performanceBenchmark.getScenario<IntensiveWeaponScenarioContext>('weapon_firing_intensive');
+      if (scenario) {
+        const contextData = await scenario.setup();
+        if (contextData && contextData.targets) {
+          contextData.targets.forEach(target => target.dispose());
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`Error disposing weapon scenario targets: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  
+  /**
+   * Helper method to dispose particle effects scenario emitters
+   */
+  private async disposeParticleEffectsScenarioEmitters(): Promise<void> {
+    try {
+      const scenario = this.performanceBenchmark.getScenario<ParticleEffectsScenarioContext>('particle_effects_stress');
+      if (scenario) {
+        const contextData = await scenario.setup();
+        if (contextData && contextData.emitters) {
+          contextData.emitters.forEach(emitter => emitter.dispose());
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`Error disposing particle effects scenario emitters: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  
+  /**
+   * Run all benchmark scenarios
+   * @returns Promise resolving to the benchmark results
    */
   public async runAllBenchmarks(): Promise<BenchmarkResult[]> {
     if (this.isRunning) {
-      console.warn('Benchmark already running');
+      this.logger.warn('Benchmark is already running');
       return [];
     }
     
     this.isRunning = true;
     this.benchmarkResults = [];
     
-    const scenarios = this.config.scenarios || this.performanceBenchmark.getScenarioNames();
-    
-    for (const scenarioName of scenarios) {
-      console.log(`Running benchmark: ${scenarioName}`);
+    try {
+      const scenarios = this.config.scenarios || this.performanceBenchmark.getScenarioNames();
       
-      try {
-        const result = await this.performanceBenchmark.runScenario(scenarioName, {
-          minDuration: this.config.minDuration,
-          maxDuration: this.config.maxDuration
-        });
+      for (const scenarioName of scenarios) {
+        this.logger.info(`Running benchmark scenario: ${scenarioName}`);
         
-        this.benchmarkResults.push(result);
-        console.log(`Benchmark ${scenarioName} completed:`, result);
-      } catch (error) {
-        console.error(`Error running benchmark ${scenarioName}:`, error);
+        try {
+          const result = await this.runBenchmark(scenarioName);
+          if (result) {
+            this.benchmarkResults.push(result);
+          }
+        } catch (error) {
+          this.logger.error(`Error running benchmark scenario ${scenarioName}:`, error instanceof Error ? error.message : String(error));
+        }
       }
+      
+      this.logger.info('All benchmarks completed');
+      return this.benchmarkResults;
+    } finally {
+      this.isRunning = false;
     }
-    
-    this.isRunning = false;
-    return this.benchmarkResults;
   }
   
   /**
    * Run a specific benchmark scenario
    * @param scenarioName Name of the scenario to run
+   * @returns Promise resolving to the benchmark result, or null if the scenario wasn't found
    */
   public async runBenchmark(scenarioName: string): Promise<BenchmarkResult | null> {
     if (this.isRunning) {
-      console.warn('Benchmark already running');
+      this.logger.warn('Benchmark is already running');
       return null;
     }
     
     this.isRunning = true;
     
     try {
-      const result = await this.performanceBenchmark.runScenario(scenarioName, {
-        minDuration: this.config.minDuration,
-        maxDuration: this.config.maxDuration
-      });
+      const result = await this.performanceBenchmark.runScenario(
+        scenarioName,
+        this.config.minDuration
+      );
       
       this.benchmarkResults.push(result);
-      console.log(`Benchmark ${scenarioName} completed:`, result);
-      this.isRunning = false;
-      
       return result;
     } catch (error) {
-      console.error(`Error running benchmark ${scenarioName}:`, error);
-      this.isRunning = false;
+      this.logger.error(`Error running benchmark ${scenarioName}:`, error instanceof Error ? error.message : String(error));
       return null;
+    } finally {
+      this.isRunning = false;
     }
   }
   
   /**
-   * Get the results of all completed benchmarks
+   * Get the results of all benchmarks run in this session
+   * @returns Array of benchmark results
    */
   public getBenchmarkResults(): BenchmarkResult[] {
     return [...this.benchmarkResults];
   }
   
   /**
-   * Clean up resources
+   * Dispose the benchmark and clean up resources
    */
   public dispose(): void {
-    this.engine.stopRenderLoop();
-    this.scene.dispose();
+    this.weaponSystem.dispose();
+    this.particleEffectsSystem.dispose();
     this.engine.dispose();
   }
 }

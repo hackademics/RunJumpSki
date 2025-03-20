@@ -262,7 +262,7 @@ describe('PhysicsSystem', () => {
       );
       
       // Destroy the physics system
-      physicsSystem.destroy();
+      physicsSystem.dispose();
       
       // Verify the physics engine was disposed
       expect(mockPhysicsEngine.dispose).toHaveBeenCalled();
@@ -270,3 +270,4 @@ describe('PhysicsSystem', () => {
     });
   });
 });
+

@@ -22,6 +22,34 @@ export interface SceneCreationOptions {
 }
 
 /**
+ * Base interface for scene-specific options
+ */
+export interface BaseSceneOptions {
+  /** Optional name for the scene */
+  name?: string;
+  /** Optional loading screen to display during scene creation */
+  loadingScreen?: boolean;
+  /** Optional physics engine configuration */
+  physics?: {
+    /** Gravity vector for the scene */
+    gravity?: BABYLON.Vector3;
+    /** Type of physics engine to use */
+    engineType?: string;
+  };
+  /** Optional render settings */
+  renderSettings?: {
+    /** Clear color for the scene */
+    clearColor?: BABYLON.Color4;
+    /** Whether to enable anti-aliasing */
+    antialiasing?: boolean;
+    /** Target rendering FPS */
+    targetFps?: number;
+  };
+  /** Custom additional options specific to scene implementations */
+  [key: string]: any;
+}
+
+/**
  * Available scene transition types
  */
 export enum SceneTransitionType {
@@ -66,7 +94,7 @@ export interface SceneCreateOptions {
   makeActive?: boolean;
   
   /** Scene-specific options to pass to the scene factory */
-  sceneOptions?: any;
+  sceneOptions?: BaseSceneOptions;
 }
 
 export interface ISceneManager {

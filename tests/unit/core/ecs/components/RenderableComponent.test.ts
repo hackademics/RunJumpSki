@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file tests/unit/core/ecs/components/RenderableComponent.test.ts
  * @description Unit tests for RenderableComponent
  */
@@ -103,7 +103,7 @@ describe('RenderableComponent', () => {
     const component = new RenderableComponent();
     const initSpy = jest.spyOn(component, 'init');
     
-    component.init(entity);
+    component.initialize(entity);
     
     expect(initSpy).toHaveBeenCalledWith(entity);
   });
@@ -214,7 +214,7 @@ describe('RenderableComponent', () => {
     const component = new RenderableComponent({ sceneNode: mockTransformNode });
     
     // Init with entity
-    component.init(entity);
+    component.initialize(entity);
     
     // Apply transform
     component.applyTransform();
@@ -233,7 +233,7 @@ describe('RenderableComponent', () => {
     });
     
     // Init with entity
-    component.init(entity);
+    component.initialize(entity);
     
     // Disable component
     component.setEnabled(false);
@@ -252,7 +252,7 @@ describe('RenderableComponent', () => {
     });
     
     // Init with entity
-    component.init(entity);
+    component.initialize(entity);
     
     // Call update
     component.update(0.016);
@@ -268,7 +268,7 @@ describe('RenderableComponent', () => {
     });
     
     // Init with entity
-    component.init(entity);
+    component.initialize(entity);
     
     // Call update
     component.update(0.016);
@@ -286,4 +286,5 @@ describe('RenderableComponent', () => {
     expect(component.getSceneNode()).toBeNull();
   });
 });
+
 

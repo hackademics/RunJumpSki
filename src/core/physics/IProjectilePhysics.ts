@@ -196,5 +196,5 @@ export interface IProjectilePhysics {
   /**
    * Performs cleanup of the system
    */
-  destroy(): void;
+  dispose(): void;
 } 

@@ -1,4 +1,4 @@
-import { ILogger, LogLevel } from './ILogger';
+import { ILogger, LogLevel, LogParam } from './ILogger';
 import { System } from '../base/System';
 
 /**
@@ -66,7 +66,7 @@ export class Logger extends System implements ILogger {
    * @param message The message to log
    * @param optionalParams Additional parameters to include
    */
-  public trace(message: string, ...optionalParams: any[]): void {
+  public trace(message: string, ...optionalParams: LogParam[]): void {
     this.log(LogLevel.TRACE, message, ...optionalParams);
   }
 
@@ -75,7 +75,7 @@ export class Logger extends System implements ILogger {
    * @param message The message to log
    * @param optionalParams Additional parameters to include
    */
-  public debug(message: string, ...optionalParams: any[]): void {
+  public debug(message: string, ...optionalParams: LogParam[]): void {
     this.log(LogLevel.DEBUG, message, ...optionalParams);
   }
 
@@ -84,7 +84,7 @@ export class Logger extends System implements ILogger {
    * @param message The message to log
    * @param optionalParams Additional parameters to include
    */
-  public info(message: string, ...optionalParams: any[]): void {
+  public info(message: string, ...optionalParams: LogParam[]): void {
     this.log(LogLevel.INFO, message, ...optionalParams);
   }
 
@@ -93,7 +93,7 @@ export class Logger extends System implements ILogger {
    * @param message The message to log
    * @param optionalParams Additional parameters to include
    */
-  public warn(message: string, ...optionalParams: any[]): void {
+  public warn(message: string, ...optionalParams: LogParam[]): void {
     this.log(LogLevel.WARN, message, ...optionalParams);
   }
 
@@ -102,7 +102,7 @@ export class Logger extends System implements ILogger {
    * @param message The message to log
    * @param optionalParams Additional parameters to include
    */
-  public error(message: string, ...optionalParams: any[]): void {
+  public error(message: string, ...optionalParams: LogParam[]): void {
     this.log(LogLevel.ERROR, message, ...optionalParams);
   }
 
@@ -111,7 +111,7 @@ export class Logger extends System implements ILogger {
    * @param message The message to log
    * @param optionalParams Additional parameters to include
    */
-  public fatal(message: string, ...optionalParams: any[]): void {
+  public fatal(message: string, ...optionalParams: LogParam[]): void {
     this.log(LogLevel.FATAL, message, ...optionalParams);
   }
 
@@ -149,7 +149,7 @@ export class Logger extends System implements ILogger {
    * @param message The message to log
    * @param optionalParams Additional parameters to include
    */
-  private log(level: LogLevel, message: string, ...optionalParams: any[]): void {
+  private log(level: LogLevel, message: string, ...optionalParams: LogParam[]): void {
     if (level < this.level) {
       return;
     }
@@ -158,7 +158,7 @@ export class Logger extends System implements ILogger {
     const prefix = this.formatPrefix(level, timestamp);
     
     // Select the appropriate console method based on level
-    let consoleMethod: (...data: any[]) => void;
+    let consoleMethod: (message?: unknown, ...optionalParams: unknown[]) => void;
     
     switch (level) {
       case LogLevel.DEBUG:

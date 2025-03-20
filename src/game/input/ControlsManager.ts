@@ -9,6 +9,8 @@ import { StorageManager, IStorageAdapter } from "../../core/utils/StorageManager
 import { GameInputMapper } from "./GameInputMapper";
 import { InputEventType, createBindingChangeData } from "./InputEvents";
 import { EventEmitter } from "../../core/events/EventEmitter";
+import { Logger } from "../../core/utils/Logger";
+import { ServiceLocator } from "../../core/base/ServiceLocator";
 
 /**
  * Storage keys for controls
@@ -26,6 +28,7 @@ export class ControlsManager extends StorageManager {
     private activeConfig: IControlsConfig;
     private eventEmitter: EventEmitter;
     private gameInputMapper: GameInputMapper;
+    private logger: Logger;
     
     /**
      * Creates a new ControlsManager
@@ -42,6 +45,23 @@ export class ControlsManager extends StorageManager {
         this.gameInputMapper = inputMapper;
         this.eventEmitter = eventEmitter;
         this.configs = new Map<string, IControlsConfig>();
+        
+        // Initialize logger with default instance
+        this.logger = new Logger('ControlsManager');
+        
+        // Try to get the logger from ServiceLocator
+        try {
+            const serviceLocator = ServiceLocator.getInstance();
+            if (serviceLocator.has('logger')) {
+                this.logger = serviceLocator.get<Logger>('logger');
+                // Add context tag
+                this.logger.addTag('ControlsManager');
+            }
+        } catch (e) {
+            this.logger.warn(`Failed to get logger from ServiceLocator: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        }
+        
+        this.logger.debug('ControlsManager created');
         
         // Create default configuration
         const defaultConfig = new ControlsConfig();
@@ -223,8 +243,10 @@ export class ControlsManager extends StorageManager {
             // Apply to input mapper
             this.applyConfigToInputMapper(this.activeConfig);
             
+            this.logger.debug(`Loaded ${this.configs.size} control configurations`);
+            
         } catch (e) {
-            console.error("Error loading control configurations:", e);
+            this.logger.error("Error loading control configurations:", e instanceof Error ? e : String(e));
             // Fall back to defaults
             this.activeConfig = this.configs.get('default')!;
             this.applyConfigToInputMapper(this.activeConfig);

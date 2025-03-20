@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file src/core/ecs/components/ColliderComponent.ts
  * @description Implementation of ColliderComponent for collision detection
  */
@@ -166,8 +166,8 @@ export class ColliderComponent extends Component implements IColliderComponent {
   /**
    * Initialize the component
    */
-  public override init(entity: IEntity): void {
-    super.init(entity);
+  public override initialize(entity: IEntity): void {
+    super.initialize(entity);
     
     // Create collision mesh if it doesn't exist
     if (!this.collisionMesh) {
@@ -626,4 +626,6 @@ export class ColliderComponent extends Component implements IColliderComponent {
     }
   }
 }
+
+
 
