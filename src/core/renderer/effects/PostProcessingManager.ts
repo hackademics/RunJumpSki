@@ -494,7 +494,7 @@ export class PostProcessingManager implements IPostProcessingManager {
   }
 
   /**
-   * Reset all post-processing effects to defaults
+   * Reset all effects (remove all post-processing)
    */
   public resetEffects(): void {
     // Remove all effects
@@ -503,16 +503,7 @@ export class PostProcessingManager implements IPostProcessingManager {
     }
 
     this.postProcesses.clear();
-
-    // Reset options to defaults
-    this.effectOptions.set(PostProcessEffectType.BLOOM, { ...DEFAULT_BLOOM_OPTIONS });
-    this.effectOptions.set(PostProcessEffectType.MOTION_BLUR, { ...DEFAULT_MOTION_BLUR_OPTIONS });
-    this.effectOptions.set(PostProcessEffectType.DEPTH_OF_FIELD, {
-      ...DEFAULT_DEPTH_OF_FIELD_OPTIONS,
-    });
-    this.effectOptions.set(PostProcessEffectType.COLOR_CORRECTION, {
-      ...DEFAULT_COLOR_CORRECTION_OPTIONS,
-    });
+    this.effectOptions.clear();
   }
 
   /**

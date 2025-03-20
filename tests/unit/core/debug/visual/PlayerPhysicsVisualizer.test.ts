@@ -16,6 +16,43 @@ import { DebugRenderer } from '../../../../../src/core/debug/DebugRenderer';
 jest.mock('../../../../../src/core/debug/DebugRenderer');
 jest.mock('babylonjs');
 
+// Add implementation for Vector3 methods
+BABYLON.Vector3.prototype.add = jest.fn().mockImplementation(function(other) {
+  return new BABYLON.Vector3(
+    this.x + other.x,
+    this.y + other.y,
+    this.z + other.z
+  );
+});
+
+BABYLON.Vector3.prototype.scale = jest.fn().mockImplementation(function(scalar) {
+  return new BABYLON.Vector3(
+    this.x * scalar,
+    this.y * scalar,
+    this.z * scalar
+  );
+});
+
+BABYLON.Vector3.prototype.length = jest.fn().mockImplementation(function() {
+  return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+});
+
+BABYLON.Vector3.prototype.clone = jest.fn().mockImplementation(function() {
+  return new BABYLON.Vector3(this.x, this.y, this.z);
+});
+
+BABYLON.Vector3.prototype.normalize = jest.fn().mockImplementation(function() {
+  const len = this.length();
+  if (len === 0) {
+    return new BABYLON.Vector3(0, 0, 0);
+  }
+  return new BABYLON.Vector3(
+    this.x / len,
+    this.y / len,
+    this.z / len
+  );
+});
+
 describe('PlayerPhysicsVisualizer', () => {
   let mockDebugRenderer: jest.Mocked<DebugRenderer>;
   let mockScene: jest.Mocked<BABYLON.Scene>;

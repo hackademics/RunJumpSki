@@ -6,6 +6,12 @@
 import { AssetManager } from '@core/assets/AssetManager';
 import { IAssetLoader } from '@core/assets/IAssetLoader';
 import { IAssetRegistry } from '@core/assets/IAssetRegistry';
+import { AssetLoader } from '@core/assets/AssetLoader';
+import { AssetRegistry } from '@core/assets/AssetRegistry';
+
+// Create spies to monitor constructor calls for default implementation test
+jest.mock('@core/assets/AssetLoader');
+jest.mock('@core/assets/AssetRegistry'); 
 
 describe('AssetManager', () => {
   let assetManager: AssetManager;
@@ -13,6 +19,8 @@ describe('AssetManager', () => {
   let mockRegistry: IAssetRegistry;
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    
     mockLoader = {
       loadAsset: jest.fn().mockImplementation((url: string) => Promise.resolve(`asset from ${url}`)),
       loadAssets: jest.fn()
@@ -64,5 +72,14 @@ describe('AssetManager', () => {
   test('should clear all assets', () => {
     assetManager.clear();
     expect(mockRegistry.clear).toHaveBeenCalled();
+  });
+
+  test('should initialize with default implementations when not provided', () => {
+    // Create an instance with no params to use default implementations
+    const defaultManager = new AssetManager();
+    
+    // Verify that the constructors were called
+    expect(AssetLoader).toHaveBeenCalledTimes(1);
+    expect(AssetRegistry).toHaveBeenCalledTimes(1);
   });
 });

@@ -13,12 +13,28 @@ import { IAssetRegistry } from "./IAssetRegistry";
 import { AssetRegistry } from "./AssetRegistry";
 
 export class AssetManager implements IAssetManager {
-  private loader: IAssetLoader;
-  private registry: IAssetRegistry;
+  protected loader: IAssetLoader;
+  protected registry: IAssetRegistry;
 
   constructor(loader?: IAssetLoader, registry?: IAssetRegistry) {
-    this.loader = loader || new AssetLoader();
-    this.registry = registry || new AssetRegistry();
+    this.loader = loader ?? new AssetLoader();
+    this.registry = registry ?? new AssetRegistry();
+  }
+
+  /**
+   * Gets the current asset loader instance
+   * @returns The asset loader
+   */
+  public getLoader(): IAssetLoader {
+    return this.loader;
+  }
+
+  /**
+   * Gets the current asset registry instance
+   * @returns The asset registry
+   */
+  public getRegistry(): IAssetRegistry {
+    return this.registry;
   }
 
   public async loadAsset(key: string, url: string): Promise<any> {

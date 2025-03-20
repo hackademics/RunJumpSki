@@ -86,6 +86,9 @@ export class JetpackPhysics implements IJetpackPhysics {
     this.state.velocity = currentVelocity.clone();
     this.state.speed = currentVelocity.length();
     
+    // Update fuel state
+    this.state.hasFuel = this.state.currentFuel > 0;
+    
     // Update whether jetpack is active based on input and fuel
     if (input.activate && this.state.hasFuel && !this.state.isActive) {
       this.activate();

@@ -133,6 +133,9 @@ describe('SpinfusorProjectile', () => {
       // Create a custom impact callback
       const onImpact = jest.fn();
       
+      // Mock the explosion effect method to avoid animation issues
+      (spinfusor as any).createExplosionEffect = jest.fn();
+      
       // Store the provided impact callback when createProjectile is called
       mockProjectilePhysics.createProjectile.mockImplementationOnce(
         (start, direction, config, mesh, callback) => {
@@ -156,9 +159,10 @@ describe('SpinfusorProjectile', () => {
       // Call the stored callback
       (spinfusor as any).lastCallback('test-projectile-id', position, normal, target);
       
-      // Check if explosion effect was created
-      // This is difficult to test directly since it's calling internal methods
-      // But we can check if the impact callback was called
+      // Check if the explosion effect was created
+      expect((spinfusor as any).createExplosionEffect).toHaveBeenCalledWith(position);
+      
+      // Check if the impact callback was called
       expect(onImpact).toHaveBeenCalledWith('test-projectile-id', position, normal, target);
     });
   });

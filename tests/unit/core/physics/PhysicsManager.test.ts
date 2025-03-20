@@ -13,13 +13,27 @@ const createMockPhysicsSystem = (): IPhysicsSystem => {
     initialize: jest.fn(),
     update: jest.fn(),
     setGravity: jest.fn(),
+    getGravity: jest.fn().mockReturnValue(new BABYLON.Vector3(0, -9.81, 0)),
     dispose: jest.fn(),
     getPhysicsEngine: jest.fn().mockReturnValue({}),
+    getDefaultFriction: jest.fn().mockReturnValue(0.5),
+    setDefaultFriction: jest.fn(),
+    getDefaultRestitution: jest.fn().mockReturnValue(0.2),
+    setDefaultRestitution: jest.fn(),
+    getTimeScale: jest.fn().mockReturnValue(1.0),
+    setTimeScale: jest.fn(),
+    isEnabled: jest.fn().mockReturnValue(true),
+    enable: jest.fn(),
+    disable: jest.fn(),
+    isDeterministic: jest.fn().mockReturnValue(false),
+    setDeterministic: jest.fn(),
+    showCollisionWireframes: jest.fn(),
     createImpostor: jest.fn().mockReturnValue({
       setLinearVelocity: jest.fn(),
       setAngularVelocity: jest.fn(),
       physicsBody: {},
       executeNativeFunction: jest.fn(),
+      registerOnPhysicsCollide: jest.fn(),
     }),
     applyForce: jest.fn(),
     applyImpulse: jest.fn(),
@@ -344,7 +358,7 @@ describe('PhysicsManager', () => {
   describe('dispose', () => {
     it('should destroy the physics system', () => {
       physicsManager.dispose();
-      expect(mockPhysicsSystem.destroy).toHaveBeenCalled();
+      expect(mockPhysicsSystem.dispose).toHaveBeenCalled();
     });
   });
 });

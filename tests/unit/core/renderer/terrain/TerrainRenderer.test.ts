@@ -7,8 +7,77 @@ import * as BABYLON from 'babylonjs';
 import { TerrainRenderer, TerrainRenderConfig, TerrainQuality } from '../../../../../src/core/renderer/terrain/TerrainRenderer';
 import { ITerrainRenderer } from '../../../../../src/core/renderer/terrain/ITerrainRenderer';
 
-// Mock BabylonJS classes
-jest.mock('babylonjs');
+// Mock Babylon.js classes
+jest.mock('babylonjs', () => {
+  return {
+    Scene: jest.fn().mockImplementation(() => ({
+      materials: [],
+      meshes: [],
+      transformNodes: [],
+      onBeforeRenderObservable: {
+        add: jest.fn(),
+        remove: jest.fn()
+      },
+      dispose: jest.fn()
+    })),
+    Texture: jest.fn(),
+    ShaderMaterial: jest.fn(),
+    StandardMaterial: jest.fn().mockImplementation(() => ({
+      diffuseColor: { r: 0, g: 0, b: 0 },
+      specularColor: { r: 0, g: 0, b: 0 },
+      diffuseTexture: null,
+      bumpTexture: null,
+      dispose: jest.fn()
+    })),
+    TransformNode: jest.fn().mockImplementation(() => ({
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      scaling: { x: 1, y: 1, z: 1 },
+      dispose: jest.fn()
+    })),
+    Vector3: jest.fn().mockImplementation((x, y, z) => ({ x, y, z, normalize: () => ({ x, y, z }) })),
+    Color3: jest.fn().mockImplementation((r, g, b) => ({ r, g, b })),
+    Mesh: {
+      // Add mock implementation for CreateGroundFromHeightMap
+      CreateGroundFromHeightMap: jest.fn().mockImplementation(() => ({
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        scaling: { x: 1, y: 1, z: 1 },
+        material: null,
+        parent: null,
+        getBoundingInfo: jest.fn().mockReturnValue({
+          boundingBox: {
+            minimumWorld: { x: -500, y: 0, z: -500 },
+            maximumWorld: { x: 500, y: 100, z: 500 }
+          }
+        }),
+        getVerticesData: jest.fn().mockImplementation((kind) => {
+          if (kind === BABYLON.VertexBuffer.PositionKind) {
+            // Return a simple vertices array for a flat terrain
+            return new Float32Array([
+              -500, 0, -500,
+              0, 0, -500,
+              500, 0, -500,
+              -500, 0, 0,
+              0, 0, 0,
+              500, 0, 0,
+              -500, 0, 500,
+              0, 0, 500,
+              500, 0, 500
+            ]);
+          }
+          return null;
+        }),
+        dispose: jest.fn()
+      }))
+    },
+    VertexBuffer: {
+      PositionKind: 'position',
+      NormalKind: 'normal',
+      UVKind: 'uv'
+    }
+  };
+});
 
 describe('TerrainRenderer', () => {
   let mockScene: jest.Mocked<BABYLON.Scene>;
@@ -20,16 +89,16 @@ describe('TerrainRenderer', () => {
   let terrainRenderer: TerrainRenderer;
   let defaultConfig: Partial<TerrainRenderConfig>;
   
-  const createMockHeightData = (width: number, height: number): Float32Array => {
-    const data = new Float32Array(width * height);
+  const createMockHeightData = (width: number, heightVal: number): Float32Array => {
+    const data = new Float32Array(width * heightVal);
     // Fill with some sample terrain data
-    for (let z = 0; z < height; z++) {
+    for (let z = 0; z < heightVal; z++) {
       for (let x = 0; x < width; x++) {
         // Simple height function for testing
         const nx = x / (width - 1) - 0.5;
-        const nz = z / (height - 1) - 0.5;
-        const height = Math.cos(nx * Math.PI * 3) * Math.cos(nz * Math.PI * 3) * 0.5 + 0.5;
-        data[z * width + x] = height;
+        const nz = z / (heightVal - 1) - 0.5;
+        const heightAtPoint = Math.cos(nx * Math.PI * 3) * Math.cos(nz * Math.PI * 3) * 0.5 + 0.5;
+        data[z * width + x] = heightAtPoint;
       }
     }
     return data;

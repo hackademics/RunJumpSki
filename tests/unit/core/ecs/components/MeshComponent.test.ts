@@ -121,7 +121,7 @@ describe('MeshComponent', () => {
   
   test('should properly initialize with entity', () => {
     const component = new MeshComponent();
-    const initSpy = jest.spyOn(component, 'init');
+    const initSpy = jest.spyOn(component, 'initialize');
     
     component.initialize(entity);
     
@@ -215,6 +215,14 @@ describe('MeshComponent', () => {
     const component = new MeshComponent();
     const onSuccessSpy = jest.fn();
     const onErrorSpy = jest.fn();
+    
+    // Update mock implementation for this test only
+    (BABYLON.SceneLoader.ImportMesh as jest.Mock).mockImplementationOnce((meshNames, path, filename, scene, onSuccess) => {
+      mockMesh.name = 'test-loaded';
+      if (onSuccess) {
+        onSuccess([mockMesh]);
+      }
+    });
     
     component.loadMesh('test-loaded', mockScene, 'models/test.glb', onSuccessSpy, onErrorSpy);
     

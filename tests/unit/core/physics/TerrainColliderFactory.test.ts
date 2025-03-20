@@ -48,7 +48,13 @@ describe('TerrainColliderFactory', () => {
     };
     
     // Configure TerrainCollider constructor mock
-    (TerrainCollider as jest.Mock).mockImplementation(() => mockTerrainCollider);
+    (TerrainCollider as jest.Mock).mockImplementation((scene) => {
+      // Auto-call initialize with the scene parameter when the constructor is called
+      if (scene) {
+        mockTerrainCollider.initialize(scene);
+      }
+      return mockTerrainCollider;
+    });
   });
   
   describe('create', () => {
@@ -68,7 +74,7 @@ describe('TerrainColliderFactory', () => {
       const terrainCollider = TerrainColliderFactory.create(config);
       
       // Assert
-      expect(TerrainCollider).toHaveBeenCalled();
+      expect(TerrainCollider).toHaveBeenCalledWith(mockScene);
       expect(mockTerrainCollider.initialize).toHaveBeenCalledWith(mockScene);
       expect(mockTerrainCollider.setHeightmapData).toHaveBeenCalledWith(sampleHeightmapData);
       expect(mockTerrainCollider.setTerrainMesh).toHaveBeenCalledWith(mockMesh);
@@ -87,7 +93,7 @@ describe('TerrainColliderFactory', () => {
       const terrainCollider = TerrainColliderFactory.create(config);
       
       // Assert
-      expect(TerrainCollider).toHaveBeenCalled();
+      expect(TerrainCollider).toHaveBeenCalledWith(mockScene);
       expect(mockTerrainCollider.initialize).toHaveBeenCalledWith(mockScene);
       expect(mockTerrainCollider.setHeightmapData).not.toHaveBeenCalled();
       expect(mockTerrainCollider.setTerrainMesh).not.toHaveBeenCalled();
@@ -107,7 +113,7 @@ describe('TerrainColliderFactory', () => {
       const terrainCollider = TerrainColliderFactory.createFromMesh(mockScene, mockMesh, materials);
       
       // Assert
-      expect(TerrainCollider).toHaveBeenCalled();
+      expect(TerrainCollider).toHaveBeenCalledWith(mockScene);
       expect(mockTerrainCollider.initialize).toHaveBeenCalledWith(mockScene);
       expect(mockTerrainCollider.setTerrainMesh).toHaveBeenCalledWith(mockMesh);
       expect(mockTerrainCollider.addTerrainMaterial).toHaveBeenCalledTimes(2);
@@ -118,7 +124,7 @@ describe('TerrainColliderFactory', () => {
       const terrainCollider = TerrainColliderFactory.createFromMesh(mockScene, mockMesh);
       
       // Assert
-      expect(TerrainCollider).toHaveBeenCalled();
+      expect(TerrainCollider).toHaveBeenCalledWith(mockScene);
       expect(mockTerrainCollider.initialize).toHaveBeenCalledWith(mockScene);
       expect(mockTerrainCollider.setTerrainMesh).toHaveBeenCalledWith(mockMesh);
       expect(mockTerrainCollider.addTerrainMaterial).not.toHaveBeenCalled();
@@ -152,7 +158,7 @@ describe('TerrainColliderFactory', () => {
       const terrainCollider = await TerrainColliderFactory.createFromHeightmap(mockScene, 'heightmap.png', options);
       
       // Assert
-      expect(TerrainCollider).toHaveBeenCalled();
+      expect(TerrainCollider).toHaveBeenCalledWith(mockScene);
       expect(mockTerrainCollider.initialize).toHaveBeenCalledWith(mockScene);
       expect(mockTerrainCollider.setHeightmapData).toHaveBeenCalledWith(sampleHeightmapData);
       expect(mockTerrainCollider.addTerrainMaterial).toHaveBeenCalledWith('snow', 0.1, undefined);
@@ -163,7 +169,7 @@ describe('TerrainColliderFactory', () => {
       const terrainCollider = await TerrainColliderFactory.createFromHeightmap(mockScene, 'heightmap.png');
       
       // Assert
-      expect(TerrainCollider).toHaveBeenCalled();
+      expect(TerrainCollider).toHaveBeenCalledWith(mockScene);
       expect(mockTerrainCollider.initialize).toHaveBeenCalledWith(mockScene);
       expect(mockTerrainCollider.setHeightmapData).toHaveBeenCalledWith(sampleHeightmapData);
       expect(mockTerrainCollider.addTerrainMaterial).not.toHaveBeenCalled();

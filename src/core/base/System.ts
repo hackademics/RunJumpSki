@@ -42,7 +42,8 @@ export abstract class System implements ISystem {
   constructor(options: SystemOptions = {}) {
     const mergedOptions = { ...DEFAULT_SYSTEM_OPTIONS, ...options };
     
-    this.name = mergedOptions.name || this.constructor.name;
+    // Use the name from options if provided, otherwise use the actual class name
+    this.name = options.name || this.constructor.name;
     this.priority = mergedOptions.priority !== undefined ? mergedOptions.priority : DEFAULT_SYSTEM_OPTIONS.priority!;
     this.enabled = mergedOptions.enabled !== undefined ? mergedOptions.enabled : DEFAULT_SYSTEM_OPTIONS.enabled!;
   }

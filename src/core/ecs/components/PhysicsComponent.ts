@@ -215,8 +215,19 @@ export class PhysicsComponent extends Component implements IPhysicsComponent {
     this.friction = config.friction!;
     this.gravityEnabled = config.gravityEnabled!;
     this.trigger = config.isTrigger!;
-    this.linearVelocity = config.linearVelocity!.clone();
-    this.angularVelocity = config.angularVelocity!.clone();
+    
+    // Initialize vectors explicitly to avoid potential undefined issues
+    this.linearVelocity = new BABYLON.Vector3(0, 0, 0);
+    this.angularVelocity = new BABYLON.Vector3(0, 0, 0);
+    
+    // Copy values from config if provided
+    if (config.linearVelocity) {
+      this.linearVelocity.copyFrom(config.linearVelocity);
+    }
+    if (config.angularVelocity) {
+      this.angularVelocity.copyFrom(config.angularVelocity);
+    }
+    
     this.autoSyncTransform = config.autoSyncTransform!;
     this.createImpostorOnInitialize = config.createImpostorOnInitialize!;
     
@@ -259,8 +270,18 @@ export class PhysicsComponent extends Component implements IPhysicsComponent {
     }
     
     // Reset velocities and clear callbacks
-    this.linearVelocity.set(0, 0, 0);
-    this.angularVelocity.set(0, 0, 0);
+    if (this.linearVelocity) {
+      this.linearVelocity.set(0, 0, 0);
+    } else {
+      this.linearVelocity = new BABYLON.Vector3(0, 0, 0);
+    }
+    
+    if (this.angularVelocity) {
+      this.angularVelocity.set(0, 0, 0);
+    } else {
+      this.angularVelocity = new BABYLON.Vector3(0, 0, 0);
+    }
+    
     this.collisionCallback = null;
     
     super.dispose();
@@ -682,8 +703,14 @@ export class PhysicsComponent extends Component implements IPhysicsComponent {
     // Handle rotation - convert quaternion to Euler angles since TransformComponent 
     // doesn't have setRotationQuaternion method
     if (rotation) {
-      const euler = rotation.toEulerAngles();
-      transformComponent.setRotation(euler.x, euler.y, euler.z);
+      try {
+        const euler = rotation.toEulerAngles();
+        if (euler && typeof euler.x === 'number' && typeof euler.y === 'number' && typeof euler.z === 'number') {
+          transformComponent.setRotation(euler.x, euler.y, euler.z);
+        }
+      } catch (e) {
+        this.logger.warn(`Failed to convert quaternion to Euler angles: ${e}`);
+      }
     }
   }
   

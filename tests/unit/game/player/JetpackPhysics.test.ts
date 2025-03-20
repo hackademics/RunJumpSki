@@ -88,24 +88,31 @@ describe('JetpackPhysics', () => {
     const input = { ...defaultInput, activate: true };
     const velocity = new BABYLON.Vector3(0, 0, 0);
     
-    // Force fuel to be nearly empty
-    jetpackPhysics.refillFuel(0.5); // Just a tiny amount of fuel
+    // First reset to ensure clean state
+    jetpackPhysics.reset();
+    
+    // Set the initial fuel to a very small amount
+    // @ts-ignore - Accessing private property for testing
+    jetpackPhysics['state'].currentFuel = 0.01;
+    
+    // Activate the jetpack
+    jetpackPhysics.activate();
     
     // Initial state should be active when we activate
     const initialState = jetpackPhysics.getState();
     expect(initialState.hasFuel).toBe(true);
+    expect(initialState.isActive).toBe(true);
+    expect(initialState.currentFuel).toBeLessThanOrEqual(0.01);
     
-    // Update with jetpack active for a while to consume remaining fuel
-    let newVelocity = velocity;
-    for (let i = 0; i < 10; i++) {
-      newVelocity = jetpackPhysics.update(0.1, input, false, newVelocity);
-    }
+    // Update with jetpack active to consume remaining fuel
+    // Just need a single update with a sufficient delta time
+    jetpackPhysics.update(0.1, input, false, velocity);
     
     // Should auto-deactivate when fuel runs out
     const finalState = jetpackPhysics.getState();
-    expect(finalState.isActive).toBe(false);
-    expect(finalState.hasFuel).toBe(false);
     expect(finalState.currentFuel).toBeLessThanOrEqual(0);
+    expect(finalState.hasFuel).toBe(false);
+    expect(finalState.isActive).toBe(false);
   });
   
   test('should accelerate upward when active', () => {

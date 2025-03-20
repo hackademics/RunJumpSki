@@ -169,16 +169,16 @@ describe('ResourceTracker', () => {
   describe('filter operations', () => {
     beforeEach(() => {
       // Set up test resources
-      const mesh1 = new MockResource('mesh1');
-      const mesh2 = new MockResource('mesh2');
-      const material1 = new MockResource('material1');
-      const material2 = new MockResource('material2');
-      const texture1 = new MockResource('texture1');
+      const mesh1 = new MockMesh('mesh1');
+      const mesh2 = new MockMesh('mesh2');
+      const material1 = new MockMaterial('material1');
+      const material2 = new MockMaterial('material2');
+      const texture1 = new MockTexture('texture1');
       
       resourceTracker.track(mesh1, { type: ResourceType.MESH, sceneId: 'scene1', group: 'group1' });
       resourceTracker.track(mesh2, { type: ResourceType.MESH, sceneId: 'scene2', group: 'group2' });
-      resourceTracker.track(material1, { type: ResourceType.MATERIAL, sceneId: 'scene1', group: 'group1' });
-      resourceTracker.track(material2, { type: ResourceType.MATERIAL, sceneId: 'scene2', group: 'group2' });
+      resourceTracker.track(material1, { type: ResourceType.MATERIAL, sceneId: 'scene1', group: 'group1', id: 'material1_id' });
+      resourceTracker.track(material2, { type: ResourceType.MATERIAL, sceneId: 'scene2', group: 'group2', id: 'material2_id' });
       resourceTracker.track(texture1, { type: ResourceType.TEXTURE, sceneId: 'scene1', group: 'group1' });
     });
 
@@ -214,14 +214,32 @@ describe('ResourceTracker', () => {
         type: ResourceType.MESH, 
         sceneId: 'scene1' 
       });
+      
+      // Verify the correct number of resources (should be 1 mesh in scene1)
       expect(scene1MeshResources.length).toBe(1);
+      
+      // Get the resource to verify it's the right one
+      const resourceId = scene1MeshResources[0];
+      const resource = resourceTracker.getResource(resourceId);
+      
+      // Verify it's a mesh in scene1
+      expect(resource?.type).toBe(ResourceType.MESH);
+      expect(resource?.sceneId).toBe('scene1');
     });
 
     it('should find resources by custom predicate', () => {
       const resourcesWithMatInId = resourceTracker.findResourcesByFilter({ 
-        predicate: (resource) => resource.id?.includes('material') || false
+        predicate: (resource) => resource.resource instanceof MockMaterial
       });
+      
+      // Expect to find exactly 2 material resources
       expect(resourcesWithMatInId.length).toBe(2);
+      
+      // Verify the resources are materials
+      for (const id of resourcesWithMatInId) {
+        const resource = resourceTracker.getResource(id);
+        expect(resource?.resource).toBeInstanceOf(MockMaterial);
+      }
     });
   });
 

@@ -656,5 +656,7 @@ export class PlayerPhysicsVisualizer {
   public dispose(): void {
     this.disable();
     this.playerData = null;
+    // Clear observable to prevent memory leaks
+    this.scene.onBeforeRenderObservable.clear();
   }
 } 

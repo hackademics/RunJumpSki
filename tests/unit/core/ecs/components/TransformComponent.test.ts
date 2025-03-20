@@ -8,6 +8,7 @@ import { TransformComponent } from '../../../../../src/core/ecs/components/Trans
 import { ITransformComponent } from '../../../../../src/core/ecs/components/ITransformComponent';
 import { Entity } from '../../../../../src/core/ecs/Entity';
 import { IEntity } from '../../../../../src/core/ecs/IEntity';
+import { Vector3 } from 'babylonjs';
 
 describe('TransformComponent', () => {
     let component: TransformComponent;
@@ -28,8 +29,17 @@ describe('TransformComponent', () => {
     });
 
     test('should initialize properly', () => {
-        component.initialize(entity);
-        expect(component.entity).toBe(entity);
+        // Create a test subclass to expose protected entity property
+        class TestTransformComponent extends TransformComponent {
+            getEntityForTest() {
+                return this.getEntity();
+            }
+        }
+        
+        const testComponent = new TestTransformComponent();
+        testComponent.initialize(entity);
+        expect(testComponent.getEntityForTest()).toBe(entity);
+        testComponent.dispose();
     });
 
     test('should initialize with default position, rotation, and scale', () => {
@@ -142,7 +152,12 @@ describe('TransformComponent', () => {
         component.rotate(new BABYLON.Vector3(0.4, 0.5, 0.6));
         
         const rotation = component.getRotation();
-        expect(rotation.equals(new BABYLON.Vector3(0.5, 0.7, 0.9))).toBe(true);
+        const expected = new BABYLON.Vector3(0.5, 0.7, 0.9);
+        
+        // Check each component separately with a small epsilon for floating point errors
+        expect(Math.abs(rotation.x - expected.x)).toBeLessThan(0.001);
+        expect(Math.abs(rotation.y - expected.y)).toBeLessThan(0.001);
+        expect(Math.abs(rotation.z - expected.z)).toBeLessThan(0.001);
     });
     
     test('should rotate correctly with coordinates', () => {
@@ -150,12 +165,20 @@ describe('TransformComponent', () => {
         component.rotate(0.4, 0.5, 0.6);
         
         const rotation = component.getRotation();
-        expect(rotation.equals(new BABYLON.Vector3(0.5, 0.7, 0.9))).toBe(true);
+        const expected = new BABYLON.Vector3(0.5, 0.7, 0.9);
+        
+        // Check each component separately with a small epsilon for floating point errors
+        expect(Math.abs(rotation.x - expected.x)).toBeLessThan(0.001);
+        expect(Math.abs(rotation.y - expected.y)).toBeLessThan(0.001);
+        expect(Math.abs(rotation.z - expected.z)).toBeLessThan(0.001);
     });
     
     test('should lookAt target correctly', () => {
-        component.setPosition(0, 0, 0);
-        component.lookAt(new BABYLON.Vector3(0, 0, 10)); // Looking down the positive Z axis
+        const component = new TransformComponent();
+        
+        // Set a target to look at
+        const target = new Vector3(0, 0, 10);
+        component.lookAt(target);
         
         // Forward should point to z+ (approximately)
         const forward = component.getForward();
@@ -194,8 +217,7 @@ describe('TransformComponent', () => {
     });
     
     test('should calculate direction vectors correctly', () => {
-        component.setPosition(0, 0, 0);
-        component.setRotation(0, 0, 0);
+        const component = new TransformComponent();
         
         const forward = component.getForward();
         const right = component.getRight();

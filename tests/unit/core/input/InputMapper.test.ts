@@ -3,7 +3,7 @@
  * @description Unit tests for the InputMapper.
  */
 
-import { InputMapper } from '@core/input/InputMapper';
+import { InputMapper } from '../../../../src/core/input/InputMapper';
 
 describe('InputMapper', () => {
   let inputMapper: InputMapper;

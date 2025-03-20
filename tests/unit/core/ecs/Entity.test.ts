@@ -7,6 +7,14 @@ import { Entity } from '../../../../src/core/ecs/Entity';
 import { Component } from '../../../../src/core/ecs/Component';
 import { ComponentError } from '../../../../src/core/utils/errors/ComponentError';
 
+// Mock uuid library
+jest.mock('uuid', () => ({
+  v4: jest.fn()
+    .mockReturnValueOnce('mock-uuid-1')
+    .mockReturnValueOnce('mock-uuid-2')
+    .mockReturnValue('mock-uuid-3')
+}));
+
 // Mock Component for testing
 class TestComponent extends Component {
   public readonly type = 'test';
@@ -25,10 +33,22 @@ class TestComponent extends Component {
   }
 }
 
+// Create a unique component for each test to avoid duplicate component issues
+class AnotherTestComponent extends Component {
+  public readonly type = 'another-test';
+  
+  constructor() {
+    super({ type: 'another-test' });
+  }
+  
+  public update(): void {}
+}
+
 describe('Entity', () => {
   let entity: Entity;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     entity = new Entity();
   });
 
@@ -96,7 +116,7 @@ describe('Entity', () => {
   describe('Update and Dispose', () => {
     test('should update all components', () => {
       const component1 = new TestComponent();
-      const component2 = new TestComponent();
+      const component2 = new AnotherTestComponent();
       
       const spy1 = jest.spyOn(component1, 'update');
       const spy2 = jest.spyOn(component2, 'update');
@@ -113,7 +133,7 @@ describe('Entity', () => {
 
     test('should dispose of all components', () => {
       const component1 = new TestComponent();
-      const component2 = new TestComponent();
+      const component2 = new AnotherTestComponent();
       
       const spy1 = jest.spyOn(component1, 'dispose');
       const spy2 = jest.spyOn(component2, 'dispose');

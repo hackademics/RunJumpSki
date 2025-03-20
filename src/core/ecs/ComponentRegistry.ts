@@ -86,9 +86,14 @@ export class ComponentRegistry {
   public registerComponent<T extends IComponent>(
     componentConstructor: ComponentConstructor<T>
   ): void {
-    // Create an instance to get the type
-    const tempComponent = new componentConstructor({} as any);
-    const type = tempComponent.type;
+    // Create a test instance to extract the component type
+    // We need to create a proper instance with a mock type
+    const prototype = componentConstructor.prototype;
+    const type = prototype.type;
+    
+    if (!type) {
+      throw new Error('Component constructor must have a type property on its prototype');
+    }
 
     // Check if component type is already registered
     if (this.componentTypes.has(type)) {

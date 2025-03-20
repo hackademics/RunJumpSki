@@ -24,8 +24,11 @@ export class AudioManager implements IAudioManager {
   ): Promise<BABYLON.Sound> {
     return new Promise((resolve, reject) => {
       try {
+        // Initialize the sound variable before using it
+        let sound: BABYLON.Sound;
+        
         // Create a new BABYLON.Sound instance.
-        const sound = new BABYLON.Sound(
+        sound = new BABYLON.Sound(
           key,
           url,
           scene,
